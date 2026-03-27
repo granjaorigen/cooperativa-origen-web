@@ -55,7 +55,7 @@ export async function POST(request) {
         "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: "Cooperativa Origen <onboarding@resend.dev>",
+        from: "Cooperativa Origen <pedidos@granjaorigen.cl>",
         to: email,
         subject: `✅ Pedido confirmado — ${cycleName}`,
         html: html,
