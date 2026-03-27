@@ -83,7 +83,7 @@ export default function CatalogoPage() {
       email: loginEmail.trim().toLowerCase(),
       options: {
         data: { full_name: loginName.trim() },
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: `${window.location.origin}/catalogo`,
       },
     });
     if (!error) setLoginSent(true);
