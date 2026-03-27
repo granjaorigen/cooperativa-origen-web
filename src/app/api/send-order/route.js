@@ -6,9 +6,9 @@ export async function POST(request) {
 
     const itemsHtml = items.map(it =>
       `<tr>
-        <td style="padding:8px 12px;border-bottom:1px solid #eee;font-size:14px">${it.name}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #eee;font-size:14px;text-align:center">${it.quantity} ${it.unit}</td>
-        <td style="padding:8px 12px;border-bottom:1px solid #eee;font-size:14px;text-align:right">$${(it.price * it.quantity).toLocaleString("es-CL")}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee;font-size:14px">${it.product_name}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee;font-size:14px;text-align:center">${it.quantity} ${it.product_unit}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee;font-size:14px;text-align:right">$${it.subtotal.toLocaleString("es-CL")}</td>
       </tr>`
     ).join("");
 
@@ -37,9 +37,8 @@ export async function POST(request) {
           </thead>
           <tbody>${itemsHtml}</tbody>
         </table>
-        <div style="margin-top:16px;padding:14px;background:#2d6a4f;border-radius:8px;display:flex;justify-content:space-between">
-          <span style="color:#fff;font-size:16px;font-weight:700">Total</span>
-          <span style="color:#fff;font-size:16px;font-weight:700">$${total.toLocaleString("es-CL")}</span>
+        <div style="margin-top:16px;padding:14px;background:#2d6a4f;border-radius:8px;text-align:center">
+          <span style="color:#fff;font-size:18px;font-weight:700">Total: $${total.toLocaleString("es-CL")}</span>
         </div>
         <p style="font-size:13px;color:#888;margin:16px 0 0">Te notificaremos cuando tu pedido esté listo para retiro. Puedes ver tu historial completo en la plataforma.</p>
       </div>
