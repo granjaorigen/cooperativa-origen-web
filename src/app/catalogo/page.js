@@ -35,8 +35,9 @@ export default function CatalogoPage() {
       setSession(session);
       setLoading(false);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
+      if (event === 'SIGNED_IN') setLoading(false);
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -139,6 +140,24 @@ export default function CatalogoPage() {
     await supabase.from("order_items").insert(items);
     setCart({});
     setShowCart(false);
+
+    // Enviar email de confirmación
+    try {
+      await fetch("/api/send-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: session.user.email,
+          name: member?.full_name || "Cooperado",
+          items: items,
+          total: cartTotal,
+          cycleName: cycle.name,
+          orderId: order.id.slice(0, 8).toUpperCase(),
+          date: new Date().toLocaleDateString("es-CL"),
+        }),
+      });
+    } catch (e) { console.log("Email error:", e); }
+
     showToast("¡Pedido enviado correctamente!");
 
     // Refresh orders
@@ -170,7 +189,7 @@ export default function CatalogoPage() {
               <div style={{ fontSize: 48, marginBottom: 16 }}>📧</div>
               <h3 style={{ marginBottom: 8 }}>Revisa tu correo</h3>
               <p style={{ color: "#888", fontSize: 14 }}>Te enviamos un enlace de acceso a <strong>{loginEmail}</strong>. Haz click en el enlace para ingresar.</p>
-              <button onClick={() => setLoginSent(false)} style={{ marginTop: 16, background: "none", border: "1px solid #ddd", borderRadius: 8, padding: "8px 16px", fontSize: 13 }}>Intentar con otro correo</button>
+              <button onClick={() => setLoginSent(false)} style={{ marginTop: 16, background: "none", border: "1px solid #ddd", borderRadius: 8, padding: "8px 16px", fontSize: 13, cursor: "pointer" }}>Intentar con otro correo</button>
             </div>
           ) : (
             <>
@@ -320,7 +339,7 @@ export default function CatalogoPage() {
           <div style={{ width: "100%", maxWidth: 440, background: "#fff", height: "100%", overflowY: "auto", padding: 24 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <h2 style={{ fontSize: 20, fontWeight: 700 }}>🛒 Tu Pedido</h2>
-              <button onClick={() => setShowCart(false)} style={{ background: "none", border: "none", fontSize: 24, color: "#999" }}>✕</button>
+              <button onClick={() => setShowCart(false)} style={{ background: "none", border: "none", fontSize: 24, color: "#999", cursor: "pointer" }}>✕</button>
             </div>
             {cartItems.length === 0 ? (
               <p style={{ color: "#888", textAlign: "center", marginTop: 40 }}>Tu carrito está vacío</p>
