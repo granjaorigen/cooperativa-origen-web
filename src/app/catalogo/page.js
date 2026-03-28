@@ -18,7 +18,6 @@ export default function CatalogoPage() {
   const [loginSent, setLoginSent] = useState(false);
   const [member, setMember] = useState(null);
   const [hourValue, setHourValue] = useState(3750);
-
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
   const [cycle, setCycle] = useState(null);
@@ -26,8 +25,8 @@ export default function CatalogoPage() {
   const [myWorkHours, setMyWorkHours] = useState([]);
   const [availableShifts, setAvailableShifts] = useState([]);
   const [mySignups, setMySignups] = useState([]);
-
   const [activeCategory, setActiveCategory] = useState("all");
+  const [activeFilter, setActiveFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState({});
   const [showCart, setShowCart] = useState(false);
@@ -81,7 +80,6 @@ export default function CatalogoPage() {
     const { error } = await supabase.auth.signInWithOtp({ email: loginEmail.trim().toLowerCase(), options: { data: { full_name: loginName.trim() }, emailRedirectTo: window.location.origin + "/catalogo" } });
     if (!error) setLoginSent(true);
   };
-
   const handleLogout = async () => { await supabase.auth.signOut(); setSession(null); setMember(null); setCart({}); };
 
   const updateCart = (pid, delta) => {
@@ -98,7 +96,6 @@ export default function CatalogoPage() {
   const cartTotal = cartItems.reduce((sum, [pid, qty]) => { const prod = products.find(p => p.id === pid); return sum + (prod ? prod.price * qty : 0); }, 0);
   const cartTotalHours = cartItems.reduce((sum, [pid, qty]) => { const prod = products.find(p => p.id === pid); return sum + (prod ? (parseFloat(prod.hours_component) || 0) * qty : 0); }, 0);
   const cartCount = cartItems.reduce((s, [, q]) => s + q, 0);
-
   const hoursBalance = parseFloat(member?.hours_balance) || 0;
   const hoursToUse = payWithHours ? Math.min(hoursBalance, cartTotalHours) : 0;
   const hoursToPayInMoney = cartTotalHours - hoursToUse;
@@ -117,7 +114,6 @@ export default function CatalogoPage() {
     setMySignups([...mySignups, { shift_id: shiftId, member_id: member.id, status: "inscrito" }]);
     showToast("Inscrito en el turno");
   };
-
   const cancelSignup = async (shiftId) => {
     if (!member) return;
     await supabase.from("shift_signups").delete().eq("shift_id", shiftId).eq("member_id", member.id);
@@ -142,7 +138,12 @@ export default function CatalogoPage() {
     const { data: myOrders } = await supabase.from("orders").select("*, order_items(*)").eq("member_id", member.id).order("created_at", { ascending: false }); setOrders(myOrders || []);
   };
 
-  const filteredProducts = products.filter(p => { const matchCat = activeCategory === "all" || p.category_id === activeCategory; const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()); return matchCat && matchSearch; });
+  const filteredProducts = products.filter(p => {
+    const matchCat = activeCategory === "all" || p.category_id === activeCategory;
+    const matchSearch = p.name.toLowerCase().includes(search.toLowerCase());
+    const matchFilter = activeFilter === "all" || (activeFilter === "origen" && p.is_origen) || (activeFilter === "regenerativo" && p.is_regenerativo);
+    return matchCat && matchSearch && matchFilter;
+  });
 
   const statusLabels = {
     pendiente_pago: { text: "Pendiente de pago", bg: "#fff3cd", color: "#856404" },
@@ -170,7 +171,7 @@ export default function CatalogoPage() {
             <div style={{ textAlign: "center", padding: 20 }}>
               <div style={{ fontSize: 48, marginBottom: 16 }}>📧</div>
               <h3 style={{ marginBottom: 8 }}>Revisa tu correo</h3>
-              <p style={{ color: "#888", fontSize: 14 }}>Te enviamos un enlace de acceso a <strong>{loginEmail}</strong>.</p>
+              <p style={{ color: "#888", fontSize: 14 }}>Enlace de acceso enviado a <strong>{loginEmail}</strong>.</p>
               <button onClick={() => setLoginSent(false)} style={{ marginTop: 16, background: "none", border: "1px solid #ddd", borderRadius: 8, padding: "8px 16px", fontSize: 13, cursor: "pointer" }}>Intentar con otro correo</button>
             </div>
           ) : (
@@ -178,7 +179,6 @@ export default function CatalogoPage() {
               <div style={{ marginBottom: 16 }}><label style={labelStyle}>Nombre completo</label><input style={inputStyle} value={loginName} onChange={e => setLoginName(e.target.value)} placeholder="Ej: Maria Gonzalez" /></div>
               <div style={{ marginBottom: 24 }}><label style={labelStyle}>Correo electronico</label><input style={inputStyle} type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} placeholder="maria@ejemplo.cl" onKeyDown={e => e.key === "Enter" && handleLogin()} /></div>
               <button onClick={handleLogin} style={{ width: "100%", background: "#2d6a4f", color: "#fff", border: "none", borderRadius: 10, padding: "14px", fontSize: 15, fontWeight: 600, cursor: "pointer" }} disabled={!loginEmail.trim()}>Recibir enlace de acceso</button>
-              <p style={{ textAlign: "center", fontSize: 12, color: "#aaa", marginTop: 12 }}>Enlace seguro a tu correo. Sin contrasenas.</p>
             </div>
           )}
           <div style={{ textAlign: "center", marginTop: 20 }}><Link href="/" style={{ color: "#999", fontSize: 12, textDecoration: "underline" }}>Volver al inicio</Link></div>
@@ -200,29 +200,27 @@ export default function CatalogoPage() {
           </div>
           <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Turnos Disponibles</h3>
           {availableShifts.length === 0 ? (<p style={{ color: "#888", fontSize: 14, marginBottom: 20 }}>No hay turnos disponibles.</p>) : (
-            <div style={{ marginBottom: 24 }}>
-              {availableShifts.map(shift => {
-                const isSignedUp = mySignups.some(s => s.shift_id === shift.id);
-                const isFull = shift.slots_taken >= shift.slots;
-                return (
-                  <div key={shift.id} style={{ background: "#fff", borderRadius: 12, padding: 16, marginBottom: 10, border: "1px solid #eee" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 15, fontWeight: 700 }}>{shift.title}</div>
-                        {shift.description && <div style={{ fontSize: 13, color: "#666", marginTop: 4 }}>{shift.description}</div>}
-                        <div style={{ fontSize: 13, color: "#888", marginTop: 6 }}>Fecha: {shift.shift_date}{shift.start_time && " | " + shift.start_time}{shift.end_time && " - " + shift.end_time}</div>
-                        <div style={{ fontSize: 13, marginTop: 4 }}><span style={{ color: "#b5651d", fontWeight: 600 }}>{fmtH(parseFloat(shift.hours))}</span><span style={{ color: "#888", marginLeft: 12 }}>Cupos: {shift.slots_taken}/{shift.slots}</span></div>
-                      </div>
-                      <div>
-                        {isSignedUp ? (<div style={{ textAlign: "center" }}><div style={{ fontSize: 11, color: "#2d6a4f", fontWeight: 600, marginBottom: 4 }}>Inscrito</div><button onClick={() => cancelSignup(shift.id)} style={{ ...pillBtn, background: "#f8d7da", color: "#721c24", fontSize: 11 }}>Cancelar</button></div>)
-                        : isFull ? (<span style={{ fontSize: 12, color: "#999" }}>Completo</span>)
-                        : (<button onClick={() => signUpForShift(shift.id)} style={{ ...pillBtn, background: "#2d6a4f", color: "#fff" }}>Inscribirme</button>)}
-                      </div>
+            <div style={{ marginBottom: 24 }}>{availableShifts.map(shift => {
+              const isSignedUp = mySignups.some(s => s.shift_id === shift.id);
+              const isFull = shift.slots_taken >= shift.slots;
+              return (
+                <div key={shift.id} style={{ background: "#fff", borderRadius: 12, padding: 16, marginBottom: 10, border: "1px solid #eee" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 15, fontWeight: 700 }}>{shift.title}</div>
+                      {shift.description && <div style={{ fontSize: 13, color: "#666", marginTop: 4 }}>{shift.description}</div>}
+                      <div style={{ fontSize: 13, color: "#888", marginTop: 6 }}>Fecha: {shift.shift_date}{shift.start_time && " | " + shift.start_time}{shift.end_time && " - " + shift.end_time}</div>
+                      <div style={{ fontSize: 13, marginTop: 4 }}><span style={{ color: "#b5651d", fontWeight: 600 }}>{fmtH(parseFloat(shift.hours))}</span><span style={{ color: "#888", marginLeft: 12 }}>Cupos: {shift.slots_taken}/{shift.slots}</span></div>
+                    </div>
+                    <div>
+                      {isSignedUp ? (<div style={{ textAlign: "center" }}><div style={{ fontSize: 11, color: "#2d6a4f", fontWeight: 600, marginBottom: 4 }}>Inscrito</div><button onClick={() => cancelSignup(shift.id)} style={{ ...pillBtn, background: "#f8d7da", color: "#721c24", fontSize: 11 }}>Cancelar</button></div>)
+                      : isFull ? (<span style={{ fontSize: 12, color: "#999" }}>Completo</span>)
+                      : (<button onClick={() => signUpForShift(shift.id)} style={{ ...pillBtn, background: "#2d6a4f", color: "#fff" }}>Inscribirme</button>)}
                     </div>
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })}</div>
           )}
           <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Historial de Horas Trabajadas</h3>
           {myWorkHours.length === 0 ? (<p style={{ color: "#888", fontSize: 14 }}>Aun no tienes horas registradas.</p>) : myWorkHours.map(wh => (
@@ -251,9 +249,7 @@ export default function CatalogoPage() {
                   <span style={{ fontSize: 12, color: "#888" }}>{new Date(o.created_at).toLocaleDateString("es-CL")}</span>
                 </div>
                 {o.order_items?.map((it, i) => (<div key={i} style={{ fontSize: 13, color: "#555", display: "flex", justifyContent: "space-between", padding: "2px 0" }}><span>{it.product_name} x {it.quantity}</span><span>{fmt(it.subtotal)} {parseFloat(it.hours_subtotal) > 0 ? "+ " + fmtH(parseFloat(it.hours_subtotal)) : ""}</span></div>))}
-                <div style={{ borderTop: "1px solid #eee", marginTop: 8, paddingTop: 8, display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
-                  <span>Total</span><span style={{ color: "#2d6a4f" }}>{fmt(o.total)} {parseFloat(o.total_hours) > 0 ? "+ " + fmtH(parseFloat(o.total_hours)) : ""}</span>
-                </div>
+                <div style={{ borderTop: "1px solid #eee", marginTop: 8, paddingTop: 8, display: "flex", justifyContent: "space-between", fontWeight: 700 }}><span>Total</span><span style={{ color: "#2d6a4f" }}>{fmt(o.total)} {parseFloat(o.total_hours) > 0 ? "+ " + fmtH(parseFloat(o.total_hours)) : ""}</span></div>
                 {o.status === "pendiente_pago" && (<div style={{ marginTop: 8, padding: 10, background: "#fff3cd", borderRadius: 8, fontSize: 12, color: "#856404" }}>Paga por transferencia o en caja de Mercado Origen.</div>)}
               </div>
             );
@@ -300,9 +296,14 @@ export default function CatalogoPage() {
 
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 20px" }}>
         <input style={{ ...inputStyle, marginBottom: 12 }} placeholder="Buscar producto..." value={search} onChange={e => setSearch(e.target.value)} />
-        <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 8 }}>
+        <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
           <button onClick={() => setActiveCategory("all")} style={{ ...catBtn, background: activeCategory === "all" ? "#1a1a1a" : "#f0f0f0", color: activeCategory === "all" ? "#fff" : "#555" }}>Todos</button>
           {categories.map(c => (<button key={c.id} onClick={() => setActiveCategory(c.id)} style={{ ...catBtn, background: activeCategory === c.id ? (c.color || "#333") : "#f0f0f0", color: activeCategory === c.id ? "#fff" : "#555" }}>{c.icon} {c.name}</button>))}
+        </div>
+        <div style={{ display: "flex", gap: 6, paddingBottom: 8, marginTop: 6 }}>
+          <button onClick={() => setActiveFilter("all")} style={{ ...sealBtn, background: activeFilter === "all" ? "#555" : "transparent", color: activeFilter === "all" ? "#fff" : "#888", border: "1px solid #ddd" }}>Sin filtro</button>
+          <button onClick={() => setActiveFilter("origen")} style={{ ...sealBtn, background: activeFilter === "origen" ? "#2d6a4f" : "transparent", color: activeFilter === "origen" ? "#fff" : "#2d6a4f", border: "1px solid #2d6a4f" }}>🌱 Producto Origen</button>
+          <button onClick={() => setActiveFilter("regenerativo")} style={{ ...sealBtn, background: activeFilter === "regenerativo" ? "#6b4226" : "transparent", color: activeFilter === "regenerativo" ? "#fff" : "#6b4226", border: "1px solid #6b4226" }}>🌿 Regenerativo L2M</button>
         </div>
       </div>
 
@@ -312,13 +313,18 @@ export default function CatalogoPage() {
           const qty = cart[p.id] || 0;
           const hc = parseFloat(p.hours_component) || 0;
           const outOfStock = p.stock <= 0;
-          const isOrigen = p.category_id === "ecorioclaro";
+          const hasSeals = p.is_origen || p.is_regenerativo;
+          const borderColor = p.is_origen ? "#2d6a4f" : p.is_regenerativo ? "#6b4226" : "#eee";
+          const bgColor = p.is_origen ? "#f0faf4" : p.is_regenerativo ? "#faf5f0" : "#fff";
           return (
-            <div key={p.id} style={{ background: isOrigen ? "#f0faf4" : "#fff", borderRadius: 12, padding: 16, border: isOrigen ? "2px solid #2d6a4f" : "1px solid #eee", display: "flex", flexDirection: "column", opacity: outOfStock ? 0.5 : 1, position: "relative" }}>
-              {isOrigen && (<div style={{ position: "absolute", top: 8, right: 8, background: "#2d6a4f", color: "#fff", fontSize: 9, fontWeight: 700, padding: "3px 8px", borderRadius: 20, letterSpacing: 0.5 }}>PRODUCTO ORIGEN</div>)}
+            <div key={p.id} style={{ background: bgColor, borderRadius: 12, padding: 16, border: hasSeals ? "2px solid " + borderColor : "1px solid #eee", display: "flex", flexDirection: "column", opacity: outOfStock ? 0.5 : 1, position: "relative" }}>
+              <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                {p.is_origen && (<span style={{ background: "#2d6a4f", color: "#fff", fontSize: 8, fontWeight: 700, padding: "3px 7px", borderRadius: 20, letterSpacing: 0.5 }}>PRODUCTO ORIGEN</span>)}
+                {p.is_regenerativo && (<span style={{ background: "#6b4226", color: "#fff", fontSize: 8, fontWeight: 700, padding: "3px 7px", borderRadius: 20, letterSpacing: 0.5 }}>REGENERATIVO L2M</span>)}
+              </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
                 <div style={{ fontSize: 11, background: (cat?.color || "#333") + "18", color: cat?.color || "#333", padding: "2px 8px", borderRadius: 20, fontWeight: 600 }}>{cat?.icon} {cat?.name}</div>
-                <div style={{ fontSize: 10, color: outOfStock ? "#e63946" : "#888", marginRight: isOrigen ? 90 : 0 }}>{outOfStock ? "Agotado" : "Stock: " + p.stock}</div>
+                <div style={{ fontSize: 10, color: outOfStock ? "#e63946" : "#888", marginRight: hasSeals ? 80 : 0 }}>{outOfStock ? "Agotado" : "Stock: " + p.stock}</div>
               </div>
               <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{p.name}</div>
               <div style={{ fontSize: 12, color: "#888", marginBottom: 8 }}>por {p.unit}</div>
@@ -362,20 +368,14 @@ export default function CatalogoPage() {
                 <div style={{ background: "#f8f8f8", borderRadius: 10, padding: 16, marginBottom: 16 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14 }}><span>Productos (pesos)</span><span style={{ fontWeight: 700 }}>{fmt(cartTotal)}</span></div>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14 }}><span>Componente horas</span><span style={{ fontWeight: 700, color: "#b5651d" }}>{fmtH(cartTotalHours)}</span></div>
-                  {hoursBalance > 0 && (<div style={{ borderTop: "1px solid #ddd", paddingTop: 8, marginTop: 8 }}>
-                    <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}><input type="checkbox" checked={payWithHours} onChange={e => setPayWithHours(e.target.checked)} />Usar mi saldo ({fmtH(hoursBalance)})</label>
-                    {payWithHours && hoursToUse > 0 && (<div style={{ fontSize: 12, color: "#2d6a4f", marginTop: 4 }}>Se descontaran {fmtH(hoursToUse)}</div>)}
-                  </div>)}
+                  {hoursBalance > 0 && (<div style={{ borderTop: "1px solid #ddd", paddingTop: 8, marginTop: 8 }}><label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}><input type="checkbox" checked={payWithHours} onChange={e => setPayWithHours(e.target.checked)} />Usar mi saldo ({fmtH(hoursBalance)})</label>{payWithHours && hoursToUse > 0 && (<div style={{ fontSize: 12, color: "#2d6a4f", marginTop: 4 }}>Se descontaran {fmtH(hoursToUse)}</div>)}</div>)}
                 </div>
                 {hoursToPayInMoney > 0 && (<div style={{ background: "#fff3cd", borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 13, color: "#856404" }}>{fmtH(hoursToPayInMoney)} = {fmt(hoursMoneyEquivalent)} (a {fmt(hourValue)}/hr)</div>)}
                 <div style={{ background: "#2d6a4f", borderRadius: 10, padding: 16, marginBottom: 16, color: "#fff" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 18, fontWeight: 700 }}><span>Total a pagar</span><span>{fmt(grandTotal)}</span></div>
                   {hoursToUse > 0 && (<div style={{ fontSize: 12, opacity: 0.8, marginTop: 4 }}>+ {fmtH(hoursToUse)} de tu saldo</div>)}
                 </div>
-                <div style={{ background: "#f0f4f8", borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 13, color: "#555" }}>
-                  <strong>Formas de pago:</strong><div style={{ marginTop: 4 }}>Transferencia bancaria</div><div>Pago en caja Mercado Origen</div>
-                  <div style={{ marginTop: 8, fontSize: 12, color: "#888" }}>Pedido queda "Pendiente de pago" hasta confirmacion.</div>
-                </div>
+                <div style={{ background: "#f0f4f8", borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 13, color: "#555" }}><strong>Formas de pago:</strong><div style={{ marginTop: 4 }}>Transferencia bancaria</div><div>Pago en caja Mercado Origen</div><div style={{ marginTop: 8, fontSize: 12, color: "#888" }}>Pedido queda pendiente hasta confirmacion.</div></div>
                 <div style={{ display: "flex", gap: 8 }}>
                   <button onClick={() => setShowPayment(false)} style={{ flex: 1, background: "#f0f0f0", border: "none", borderRadius: 10, padding: "14px", fontSize: 14, cursor: "pointer" }}>Volver</button>
                   <button onClick={submitOrder} style={{ flex: 2, background: "#2d6a4f", color: "#fff", border: "none", borderRadius: 10, padding: "14px", fontSize: 16, fontWeight: 600, cursor: "pointer" }}>Confirmar Pedido</button>
@@ -383,24 +383,11 @@ export default function CatalogoPage() {
               </div>
             ) : (
               <div>
-                {cartItems.map(([pid, qty]) => {
-                  const prod = products.find(p => p.id === pid); if (!prod) return null;
-                  const hc = parseFloat(prod.hours_component) || 0;
-                  return (
-                    <div key={pid} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "1px solid #f0f0f0" }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 14, fontWeight: 600 }}>{prod.name}</div>
-                        <div style={{ fontSize: 12, color: "#888" }}>{fmt(prod.price)} x {qty} = {fmt(prod.price * qty)}</div>
-                        {hc > 0 && <div style={{ fontSize: 11, color: "#b5651d" }}>+ {fmtH(hc)} x {qty} = {fmtH(hc * qty)}</div>}
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <button onClick={() => updateCart(pid, -1)} style={qtyBtn}>-</button>
-                        <span style={{ fontWeight: 700, minWidth: 20, textAlign: "center" }}>{qty}</span>
-                        <button onClick={() => updateCart(pid, 1)} style={{ ...qtyBtn, background: "#2d6a4f", color: "#fff", border: "none" }}>+</button>
-                      </div>
-                    </div>
-                  );
-                })}
+                {cartItems.map(([pid, qty]) => { const prod = products.find(p => p.id === pid); if (!prod) return null; const hc = parseFloat(prod.hours_component) || 0; return (
+                  <div key={pid} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "1px solid #f0f0f0" }}>
+                    <div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 600 }}>{prod.name}</div><div style={{ fontSize: 12, color: "#888" }}>{fmt(prod.price)} x {qty} = {fmt(prod.price * qty)}</div>{hc > 0 && <div style={{ fontSize: 11, color: "#b5651d" }}>+ {fmtH(hc)} x {qty} = {fmtH(hc * qty)}</div>}</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}><button onClick={() => updateCart(pid, -1)} style={qtyBtn}>-</button><span style={{ fontWeight: 700, minWidth: 20, textAlign: "center" }}>{qty}</span><button onClick={() => updateCart(pid, 1)} style={{ ...qtyBtn, background: "#2d6a4f", color: "#fff", border: "none" }}>+</button></div>
+                  </div>); })}
                 <div style={{ marginTop: 20, padding: "16px 0", borderTop: "2px solid #1a1a1a" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 18, fontWeight: 700 }}><span>Subtotal</span><span style={{ color: "#2d6a4f" }}>{fmt(cartTotal)}</span></div>
                   {cartTotalHours > 0 && (<div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: "#b5651d", fontWeight: 600, marginTop: 4 }}><span>Horas</span><span>{fmtH(cartTotalHours)}</span></div>)}
@@ -419,4 +406,5 @@ const labelStyle = { display: "block", fontSize: 12, fontWeight: 600, color: "#5
 const inputStyle = { width: "100%", padding: "10px 12px", border: "1px solid #ddd", borderRadius: 8, fontSize: 14, boxSizing: "border-box" };
 const pillBtn = { background: "#f0f0f0", border: "none", borderRadius: 20, padding: "8px 14px", fontSize: 13, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap" };
 const catBtn = { border: "none", borderRadius: 20, padding: "8px 14px", fontSize: 12, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.2s" };
+const sealBtn = { borderRadius: 20, padding: "6px 12px", fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.2s", background: "transparent" };
 const qtyBtn = { width: 32, height: 32, borderRadius: "50%", border: "1px solid #ddd", background: "#f8f8f8", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, lineHeight: 1 };
