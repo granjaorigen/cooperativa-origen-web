@@ -122,9 +122,8 @@ export default function CatalogoPage() {
   };
 
   const submitOrder = async () => {
-    if (!member || cartItems.length === 0) return;
-    if (cycleMode === "cycles" && (!cycle || cycle.status !== "open")) { showToast("No hay ciclo abierto"); return; }
-    const cycleId = cycleMode === "cycles" ? cycle.id : null;
+    if (!member || cartItems.length === 0 || !canOrder) return;
+    const cycleId = cycleMode === "cycles" ? cycle?.id : null;
     const { data: order, error: orderError } = await supabase.from("orders").insert({ member_id: member.id, cycle_id: cycleId, total: grandTotal, total_hours: cartTotalHours, hours_paid_with_balance: hoursToUse, hours_paid_with_money: hoursToPayInMoney, payment_method: "pending", status: "pendiente_pago" }).select().single();
     if (orderError) { showToast("Error al enviar pedido"); return; }
     const items = cartItems.map(([pid, qty]) => { const prod = products.find(p => p.id === pid); const hc = parseFloat(prod.hours_component) || 0; return { order_id: order.id, product_id: pid, product_name: prod.name, product_unit: prod.unit, price: prod.price, quantity: qty, subtotal: prod.price * qty, hours_component: hc, hours_subtotal: hc * qty }; });
@@ -187,16 +186,13 @@ export default function CatalogoPage() {
     );
   }
 
-  // PENDING APPROVAL
   if (member && member.approval_status === "pendiente") {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg, #faf9f6 0%, #e8e4dd 100%)", padding: 20 }}>
         <div style={{ width: "100%", maxWidth: 420, background: "#fff", borderRadius: 16, padding: "40px 32px", boxShadow: "0 8px 32px rgba(0,0,0,0.08)", textAlign: "center" }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>⏳</div>
           <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Solicitud en revision</h2>
-          <p style={{ color: "#666", fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>
-            Tu solicitud de ingreso a la Cooperativa Origen esta siendo revisada por la administracion. Te avisaremos cuando sea aprobada.
-          </p>
+          <p style={{ color: "#666", fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>Tu solicitud de ingreso a la Cooperativa Origen esta siendo revisada por la administracion.</p>
           <div style={{ background: "#f8f8f8", borderRadius: 10, padding: 16, marginBottom: 20, fontSize: 13, color: "#555" }}>
             <div style={{ marginBottom: 4 }}><strong>Nombre:</strong> {member.full_name}</div>
             <div><strong>Email:</strong> {member.email}</div>
@@ -207,16 +203,13 @@ export default function CatalogoPage() {
     );
   }
 
-  // REJECTED
   if (member && member.approval_status === "rechazado") {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg, #faf9f6 0%, #e8e4dd 100%)", padding: 20 }}>
         <div style={{ width: "100%", maxWidth: 420, background: "#fff", borderRadius: 16, padding: "40px 32px", boxShadow: "0 8px 32px rgba(0,0,0,0.08)", textAlign: "center" }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>Acceso denegado</div>
           <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Solicitud no aprobada</h2>
-          <p style={{ color: "#666", fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>
-            Tu solicitud de ingreso no fue aprobada. Si crees que es un error, contacta al administrador de la cooperativa.
-          </p>
+          <p style={{ color: "#666", fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>Contacta al administrador de la cooperativa.</p>
           <button onClick={handleLogout} style={{ background: "#f0f0f0", border: "none", borderRadius: 10, padding: "10px 24px", fontSize: 13, cursor: "pointer" }}>Cerrar sesion</button>
         </div>
       </div>
@@ -294,6 +287,7 @@ export default function CatalogoPage() {
     );
   }
 
+  // MAIN VIEW
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
       {toast && (<div style={{ position: "fixed", top: 16, right: 16, zIndex: 999, background: "#2d6a4f", color: "#fff", padding: "12px 20px", borderRadius: 10, fontSize: 14, fontWeight: 600, boxShadow: "0 4px 16px rgba(0,0,0,0.2)" }}>{toast}</div>)}
@@ -310,136 +304,158 @@ export default function CatalogoPage() {
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <button onClick={() => setShowHoursPanel(true)} style={{ ...pillBtn, background: "#b5651d", color: "#fff" }}>Mis Horas</button>
             <button onClick={() => setShowHistory(true)} style={pillBtn}>Pedidos</button>
-            <button onClick={() => setShowCart(true)} style={{ ...pillBtn, background: cartCount > 0 ? "#2d6a4f" : "#f0f0f0", color: cartCount > 0 ? "#fff" : "#333" }}>{cartCount > 0 ? cartCount + " items" : "Carrito"}</button>
+            {canOrder && <button onClick={() => setShowCart(true)} style={{ ...pillBtn, background: cartCount > 0 ? "#2d6a4f" : "#f0f0f0", color: cartCount > 0 ? "#fff" : "#333" }}>{cartCount > 0 ? cartCount + " items" : "Carrito"}</button>}
             {member?.is_admin && <Link href="/admin" style={{ ...pillBtn, background: "#222", color: "#e8c547", fontSize: 11, display: "inline-block", padding: "8px 14px", borderRadius: 20 }}>Admin</Link>}
             <button onClick={handleLogout} style={{ ...pillBtn, fontSize: 11 }}>Salir</button>
           </div>
         </div>
       </div>
 
-      <div style={{ maxWidth: 900, margin: "16px auto", padding: "0 20px" }}>
-        {cycleMode === "cycles" ? (
-          <div style={{ background: cycle ? "linear-gradient(135deg, #2d6a4f, #40916c)" : "#6c757d", borderRadius: 12, padding: "14px 20px", color: "#fff" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-              <div>
-                <div style={{ fontSize: 11, opacity: 0.8, letterSpacing: 1 }}>{cycle ? "CICLO ABIERTO" : "SIN CICLO ACTIVO"}</div>
-                <div style={{ fontSize: 15, fontWeight: 600, marginTop: 2 }}>{cycle?.name || "No hay ciclo abierto. Vuelve pronto."}</div>
-              </div>
-              {cycle && <div style={{ fontSize: 12, opacity: 0.9 }}>{cycle.start_date} - {cycle.end_date}</div>}
+      {!canOrder && cycleMode === "cycles" ? (
+        <div style={{ maxWidth: 500, margin: "80px auto", padding: "0 20px", textAlign: "center" }}>
+          <div style={{ background: "#fff", borderRadius: 16, padding: "40px 32px", boxShadow: "0 8px 32px rgba(0,0,0,0.08)" }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
+            <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>No hay ciclo de pedidos activo</h2>
+            <p style={{ color: "#666", fontSize: 14, lineHeight: 1.6, marginBottom: 16 }}>
+              En este momento no hay un ciclo de pedidos abierto. Cuando la administracion abra uno nuevo, recibiras un correo con toda la informacion.
+            </p>
+            <div style={{ background: "#f0f4f8", borderRadius: 10, padding: 16, fontSize: 13, color: "#555" }}>
+              Mientras tanto, puedes revisar tu historial de pedidos o tus horas de trabajo usando los botones de arriba.
             </div>
           </div>
-        ) : (
-          <div style={{ background: "linear-gradient(135deg, #2d6a4f, #40916c)", borderRadius: 12, padding: "14px 20px", color: "#fff" }}>
-            <div style={{ fontSize: 11, opacity: 0.8, letterSpacing: 1 }}>TIENDA ABIERTA</div>
-            <div style={{ fontSize: 15, fontWeight: 600, marginTop: 2 }}>Pedidos disponibles en todo momento</div>
-          </div>
-        )}
-      </div>
-
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 20px" }}>
-        <input style={{ ...inputStyle, marginBottom: 12 }} placeholder="Buscar producto..." value={search} onChange={e => setSearch(e.target.value)} />
-        <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
-          <button onClick={() => setActiveCategory("all")} style={{ ...catBtn, background: activeCategory === "all" ? "#1a1a1a" : "#f0f0f0", color: activeCategory === "all" ? "#fff" : "#555" }}>Todos</button>
-          {categories.map(c => (<button key={c.id} onClick={() => setActiveCategory(c.id)} style={{ ...catBtn, background: activeCategory === c.id ? (c.color || "#333") : "#f0f0f0", color: activeCategory === c.id ? "#fff" : "#555" }}>{c.icon} {c.name}</button>))}
         </div>
-        <div style={{ display: "flex", gap: 6, paddingBottom: 8, marginTop: 6 }}>
-          <button onClick={() => setActiveFilter("all")} style={{ ...sealBtn, background: activeFilter === "all" ? "#555" : "transparent", color: activeFilter === "all" ? "#fff" : "#888", border: "1px solid #ddd" }}>Sin filtro</button>
-          <button onClick={() => setActiveFilter("origen")} style={{ ...sealBtn, background: activeFilter === "origen" ? "#2d6a4f" : "transparent", color: activeFilter === "origen" ? "#fff" : "#2d6a4f", border: "1px solid #2d6a4f" }}>Producto Origen</button>
-          <button onClick={() => setActiveFilter("regenerativo")} style={{ ...sealBtn, background: activeFilter === "regenerativo" ? "#6b4226" : "transparent", color: activeFilter === "regenerativo" ? "#fff" : "#6b4226", border: "1px solid #6b4226" }}>Regenerativo L2M</button>
-        </div>
-      </div>
-
-      <div style={{ maxWidth: 900, margin: "16px auto", padding: "0 20px 100px", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
-        {filteredProducts.map(p => {
-          const cat = categories.find(c => c.id === p.category_id);
-          const qty = cart[p.id] || 0;
-          const hc = parseFloat(p.hours_component) || 0;
-          const outOfStock = p.stock <= 0;
-          const hasSeals = p.is_origen || p.is_regenerativo;
-          const borderColor = p.is_origen ? "#2d6a4f" : p.is_regenerativo ? "#6b4226" : "#eee";
-          const bgColor = p.is_origen ? "#f0faf4" : p.is_regenerativo ? "#faf5f0" : "#fff";
-          return (
-            <div key={p.id} style={{ background: bgColor, borderRadius: 12, padding: 16, border: hasSeals ? "2px solid " + borderColor : "1px solid #eee", display: "flex", flexDirection: "column", opacity: outOfStock ? 0.5 : 1 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
-                <div style={{ fontSize: 11, background: (cat?.color || "#333") + "18", color: cat?.color || "#333", padding: "2px 8px", borderRadius: 20, fontWeight: 600 }}>{cat?.icon} {cat?.name}</div>
-                <div style={{ fontSize: 10, color: outOfStock ? "#e63946" : "#888" }}>{outOfStock ? "Agotado" : "Stock: " + p.stock}</div>
-              </div>
-              {hasSeals && (
-                <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 6 }}>
-                  {p.is_origen && (<span style={{ background: "#2d6a4f", color: "#fff", fontSize: 8, fontWeight: 700, padding: "3px 7px", borderRadius: 20, letterSpacing: 0.5 }}>PRODUCTO ORIGEN</span>)}
-                  {p.is_regenerativo && (<span style={{ background: "#6b4226", color: "#fff", fontSize: 8, fontWeight: 700, padding: "3px 7px", borderRadius: 20, letterSpacing: 0.5 }}>REGENERATIVO L2M</span>)}
-                </div>
-              )}
-              <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{p.name}</div>
-              <div style={{ fontSize: 12, color: "#888", marginBottom: 8 }}>por {p.unit}</div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "auto" }}>
-                <div>
-                  <div style={{ fontSize: 20, fontWeight: 700, color: "#2d6a4f" }}>{fmt(p.price)}</div>
-                  {hc > 0 && <div style={{ fontSize: 11, color: "#b5651d", fontWeight: 600 }}>+ {fmtH(hc)}</div>}
-                </div>
-                {canOrder && !outOfStock ? (
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    {qty > 0 && <button onClick={() => updateCart(p.id, -1)} style={qtyBtn}>-</button>}
-                    {qty > 0 && <span style={{ fontSize: 16, fontWeight: 700, minWidth: 24, textAlign: "center" }}>{qty}</span>}
-                    <button onClick={() => updateCart(p.id, 1)} style={{ ...qtyBtn, background: "#2d6a4f", color: "#fff", border: "none" }}>+</button>
+      ) : (
+        <div>
+          <div style={{ maxWidth: 900, margin: "16px auto", padding: "0 20px" }}>
+            {cycleMode === "cycles" ? (
+              <div style={{ background: "linear-gradient(135deg, #2d6a4f, #40916c)", borderRadius: 12, padding: "14px 20px", color: "#fff" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 11, opacity: 0.8, letterSpacing: 1 }}>CICLO ABIERTO</div>
+                    <div style={{ fontSize: 15, fontWeight: 600, marginTop: 2 }}>{cycle?.name}</div>
                   </div>
-                ) : !canOrder ? (<span style={{ fontSize: 11, color: "#999" }}>No disponible</span>) : (<span style={{ fontSize: 11, color: "#e63946" }}>Agotado</span>)}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {cartCount > 0 && !showCart && (
-        <div style={{ position: "fixed", bottom: 20, left: "50%", transform: "translateX(-50%)", zIndex: 200 }}>
-          <button onClick={() => setShowCart(true)} style={{ background: "#2d6a4f", color: "#fff", border: "none", borderRadius: 50, padding: "14px 28px", fontSize: 15, fontWeight: 600, cursor: "pointer", boxShadow: "0 6px 24px rgba(45,106,79,0.4)" }}>
-            Carrito ({cartCount}) - {fmt(cartTotal)}
-          </button>
-        </div>
-      )}
-
-      {showCart && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "flex-end" }} onClick={(e) => { if (e.target === e.currentTarget) setShowCart(false); }}>
-          <div style={{ width: "100%", maxWidth: 440, background: "#fff", height: "100%", overflowY: "auto", padding: 24 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <h2 style={{ fontSize: 20, fontWeight: 700 }}>Tu Pedido</h2>
-              <button onClick={() => setShowCart(false)} style={{ background: "none", border: "none", fontSize: 24, color: "#999", cursor: "pointer" }}>X</button>
-            </div>
-            {cartItems.length === 0 ? (<p style={{ color: "#888", textAlign: "center", marginTop: 40 }}>Carrito vacio</p>
-            ) : showPayment ? (
-              <div>
-                <h3 style={{ fontSize: 16, marginBottom: 16 }}>Resumen de Pago</h3>
-                <div style={{ background: "#f8f8f8", borderRadius: 10, padding: 16, marginBottom: 16 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14 }}><span>Productos</span><span style={{ fontWeight: 700 }}>{fmt(cartTotal)}</span></div>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14 }}><span>Horas</span><span style={{ fontWeight: 700, color: "#b5651d" }}>{fmtH(cartTotalHours)}</span></div>
-                  {hoursBalance > 0 && (<div style={{ borderTop: "1px solid #ddd", paddingTop: 8, marginTop: 8 }}><label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}><input type="checkbox" checked={payWithHours} onChange={e => setPayWithHours(e.target.checked)} />Usar saldo ({fmtH(hoursBalance)})</label>{payWithHours && hoursToUse > 0 && (<div style={{ fontSize: 12, color: "#2d6a4f", marginTop: 4 }}>Descuento: {fmtH(hoursToUse)}</div>)}</div>)}
-                </div>
-                {hoursToPayInMoney > 0 && (<div style={{ background: "#fff3cd", borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 13, color: "#856404" }}>{fmtH(hoursToPayInMoney)} = {fmt(hoursMoneyEquivalent)} (a {fmt(hourValue)}/hr)</div>)}
-                <div style={{ background: "#2d6a4f", borderRadius: 10, padding: 16, marginBottom: 16, color: "#fff" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 18, fontWeight: 700 }}><span>Total</span><span>{fmt(grandTotal)}</span></div>
-                  {hoursToUse > 0 && (<div style={{ fontSize: 12, opacity: 0.8, marginTop: 4 }}>+ {fmtH(hoursToUse)} de saldo</div>)}
-                </div>
-                <div style={{ background: "#f0f4f8", borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 13, color: "#555" }}><strong>Formas de pago:</strong><div style={{ marginTop: 4 }}>Transferencia bancaria o caja Mercado Origen</div></div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={() => setShowPayment(false)} style={{ flex: 1, background: "#f0f0f0", border: "none", borderRadius: 10, padding: "14px", fontSize: 14, cursor: "pointer" }}>Volver</button>
-                  <button onClick={submitOrder} style={{ flex: 2, background: "#2d6a4f", color: "#fff", border: "none", borderRadius: 10, padding: "14px", fontSize: 16, fontWeight: 600, cursor: "pointer" }}>Confirmar Pedido</button>
+                  <div style={{ textAlign: "right" }}>
+                    {cycle?.close_date && (
+                      <div style={{ fontSize: 12, opacity: 0.9 }}>Cierra: {new Date(cycle.close_date).toLocaleDateString("es-CL", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>
+                    )}
+                    {!cycle?.close_date && cycle && <div style={{ fontSize: 12, opacity: 0.9 }}>{cycle.start_date} - {cycle.end_date}</div>}
+                  </div>
                 </div>
               </div>
             ) : (
-              <div>
-                {cartItems.map(([pid, qty]) => { const prod = products.find(p => p.id === pid); if (!prod) return null; const hc = parseFloat(prod.hours_component) || 0; return (
-                  <div key={pid} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "1px solid #f0f0f0" }}>
-                    <div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 600 }}>{prod.name}</div><div style={{ fontSize: 12, color: "#888" }}>{fmt(prod.price)} x {qty} = {fmt(prod.price * qty)}</div>{hc > 0 && <div style={{ fontSize: 11, color: "#b5651d" }}>+ {fmtH(hc * qty)}</div>}</div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}><button onClick={() => updateCart(pid, -1)} style={qtyBtn}>-</button><span style={{ fontWeight: 700, minWidth: 20, textAlign: "center" }}>{qty}</span><button onClick={() => updateCart(pid, 1)} style={{ ...qtyBtn, background: "#2d6a4f", color: "#fff", border: "none" }}>+</button></div>
-                  </div>); })}
-                <div style={{ marginTop: 20, padding: "16px 0", borderTop: "2px solid #1a1a1a" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 18, fontWeight: 700 }}><span>Subtotal</span><span style={{ color: "#2d6a4f" }}>{fmt(cartTotal)}</span></div>
-                  {cartTotalHours > 0 && (<div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: "#b5651d", fontWeight: 600, marginTop: 4 }}><span>Horas</span><span>{fmtH(cartTotalHours)}</span></div>)}
-                </div>
-                <button onClick={() => setShowPayment(true)} style={{ width: "100%", marginTop: 12, background: "#2d6a4f", color: "#fff", border: "none", borderRadius: 10, padding: "14px", fontSize: 16, fontWeight: 600, cursor: "pointer" }}>Continuar al pago</button>
+              <div style={{ background: "linear-gradient(135deg, #2d6a4f, #40916c)", borderRadius: 12, padding: "14px 20px", color: "#fff" }}>
+                <div style={{ fontSize: 11, opacity: 0.8, letterSpacing: 1 }}>TIENDA ABIERTA</div>
+                <div style={{ fontSize: 15, fontWeight: 600, marginTop: 2 }}>Pedidos disponibles en todo momento</div>
               </div>
             )}
           </div>
+
+          <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 20px" }}>
+            <input style={{ ...inputStyle, marginBottom: 12 }} placeholder="Buscar producto..." value={search} onChange={e => setSearch(e.target.value)} />
+            <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
+              <button onClick={() => setActiveCategory("all")} style={{ ...catBtn, background: activeCategory === "all" ? "#1a1a1a" : "#f0f0f0", color: activeCategory === "all" ? "#fff" : "#555" }}>Todos</button>
+              {categories.map(c => (<button key={c.id} onClick={() => setActiveCategory(c.id)} style={{ ...catBtn, background: activeCategory === c.id ? (c.color || "#333") : "#f0f0f0", color: activeCategory === c.id ? "#fff" : "#555" }}>{c.icon} {c.name}</button>))}
+            </div>
+            <div style={{ display: "flex", gap: 6, paddingBottom: 8, marginTop: 6 }}>
+              <button onClick={() => setActiveFilter("all")} style={{ ...sealBtn, background: activeFilter === "all" ? "#555" : "transparent", color: activeFilter === "all" ? "#fff" : "#888", border: "1px solid #ddd" }}>Sin filtro</button>
+              <button onClick={() => setActiveFilter("origen")} style={{ ...sealBtn, background: activeFilter === "origen" ? "#2d6a4f" : "transparent", color: activeFilter === "origen" ? "#fff" : "#2d6a4f", border: "1px solid #2d6a4f" }}>Producto Origen</button>
+              <button onClick={() => setActiveFilter("regenerativo")} style={{ ...sealBtn, background: activeFilter === "regenerativo" ? "#6b4226" : "transparent", color: activeFilter === "regenerativo" ? "#fff" : "#6b4226", border: "1px solid #6b4226" }}>Regenerativo L2M</button>
+            </div>
+          </div>
+
+          <div style={{ maxWidth: 900, margin: "16px auto", padding: "0 20px 100px", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
+            {filteredProducts.map(p => {
+              const cat = categories.find(c => c.id === p.category_id);
+              const qty = cart[p.id] || 0;
+              const hc = parseFloat(p.hours_component) || 0;
+              const outOfStock = p.stock <= 0;
+              const hasSeals = p.is_origen || p.is_regenerativo;
+              const borderColor = p.is_origen ? "#2d6a4f" : p.is_regenerativo ? "#6b4226" : "#eee";
+              const bgColor = p.is_origen ? "#f0faf4" : p.is_regenerativo ? "#faf5f0" : "#fff";
+              return (
+                <div key={p.id} style={{ background: bgColor, borderRadius: 12, padding: 16, border: hasSeals ? "2px solid " + borderColor : "1px solid #eee", display: "flex", flexDirection: "column", opacity: outOfStock ? 0.5 : 1 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+                    <div style={{ fontSize: 11, background: (cat?.color || "#333") + "18", color: cat?.color || "#333", padding: "2px 8px", borderRadius: 20, fontWeight: 600 }}>{cat?.icon} {cat?.name}</div>
+                    <div style={{ fontSize: 10, color: outOfStock ? "#e63946" : "#888" }}>{outOfStock ? "Agotado" : "Stock: " + p.stock}</div>
+                  </div>
+                  {hasSeals && (
+                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 6 }}>
+                      {p.is_origen && (<span style={{ background: "#2d6a4f", color: "#fff", fontSize: 8, fontWeight: 700, padding: "3px 7px", borderRadius: 20, letterSpacing: 0.5 }}>PRODUCTO ORIGEN</span>)}
+                      {p.is_regenerativo && (<span style={{ background: "#6b4226", color: "#fff", fontSize: 8, fontWeight: 700, padding: "3px 7px", borderRadius: 20, letterSpacing: 0.5 }}>REGENERATIVO L2M</span>)}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{p.name}</div>
+                  <div style={{ fontSize: 12, color: "#888", marginBottom: 8 }}>por {p.unit}</div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "auto" }}>
+                    <div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: "#2d6a4f" }}>{fmt(p.price)}</div>
+                      {hc > 0 && <div style={{ fontSize: 11, color: "#b5651d", fontWeight: 600 }}>+ {fmtH(hc)}</div>}
+                    </div>
+                    {!outOfStock ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        {qty > 0 && <button onClick={() => updateCart(p.id, -1)} style={qtyBtn}>-</button>}
+                        {qty > 0 && <span style={{ fontSize: 16, fontWeight: 700, minWidth: 24, textAlign: "center" }}>{qty}</span>}
+                        <button onClick={() => updateCart(p.id, 1)} style={{ ...qtyBtn, background: "#2d6a4f", color: "#fff", border: "none" }}>+</button>
+                      </div>
+                    ) : (<span style={{ fontSize: 11, color: "#e63946" }}>Agotado</span>)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {cartCount > 0 && !showCart && (
+            <div style={{ position: "fixed", bottom: 20, left: "50%", transform: "translateX(-50%)", zIndex: 200 }}>
+              <button onClick={() => setShowCart(true)} style={{ background: "#2d6a4f", color: "#fff", border: "none", borderRadius: 50, padding: "14px 28px", fontSize: 15, fontWeight: 600, cursor: "pointer", boxShadow: "0 6px 24px rgba(45,106,79,0.4)" }}>
+                Carrito ({cartCount}) - {fmt(cartTotal)}
+              </button>
+            </div>
+          )}
+
+          {showCart && (
+            <div style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "flex-end" }} onClick={(e) => { if (e.target === e.currentTarget) setShowCart(false); }}>
+              <div style={{ width: "100%", maxWidth: 440, background: "#fff", height: "100%", overflowY: "auto", padding: 24 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                  <h2 style={{ fontSize: 20, fontWeight: 700 }}>Tu Pedido</h2>
+                  <button onClick={() => setShowCart(false)} style={{ background: "none", border: "none", fontSize: 24, color: "#999", cursor: "pointer" }}>X</button>
+                </div>
+                {cartItems.length === 0 ? (<p style={{ color: "#888", textAlign: "center", marginTop: 40 }}>Carrito vacio</p>
+                ) : showPayment ? (
+                  <div>
+                    <h3 style={{ fontSize: 16, marginBottom: 16 }}>Resumen de Pago</h3>
+                    <div style={{ background: "#f8f8f8", borderRadius: 10, padding: 16, marginBottom: 16 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14 }}><span>Productos</span><span style={{ fontWeight: 700 }}>{fmt(cartTotal)}</span></div>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14 }}><span>Horas</span><span style={{ fontWeight: 700, color: "#b5651d" }}>{fmtH(cartTotalHours)}</span></div>
+                      {hoursBalance > 0 && (<div style={{ borderTop: "1px solid #ddd", paddingTop: 8, marginTop: 8 }}><label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}><input type="checkbox" checked={payWithHours} onChange={e => setPayWithHours(e.target.checked)} />Usar saldo ({fmtH(hoursBalance)})</label>{payWithHours && hoursToUse > 0 && (<div style={{ fontSize: 12, color: "#2d6a4f", marginTop: 4 }}>Descuento: {fmtH(hoursToUse)}</div>)}</div>)}
+                    </div>
+                    {hoursToPayInMoney > 0 && (<div style={{ background: "#fff3cd", borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 13, color: "#856404" }}>{fmtH(hoursToPayInMoney)} = {fmt(hoursMoneyEquivalent)} (a {fmt(hourValue)}/hr)</div>)}
+                    <div style={{ background: "#2d6a4f", borderRadius: 10, padding: 16, marginBottom: 16, color: "#fff" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 18, fontWeight: 700 }}><span>Total</span><span>{fmt(grandTotal)}</span></div>
+                      {hoursToUse > 0 && (<div style={{ fontSize: 12, opacity: 0.8, marginTop: 4 }}>+ {fmtH(hoursToUse)} de saldo</div>)}
+                    </div>
+                    <div style={{ background: "#f0f4f8", borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 13, color: "#555" }}><strong>Formas de pago:</strong><div style={{ marginTop: 4 }}>Transferencia bancaria o caja Mercado Origen</div></div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={() => setShowPayment(false)} style={{ flex: 1, background: "#f0f0f0", border: "none", borderRadius: 10, padding: "14px", fontSize: 14, cursor: "pointer" }}>Volver</button>
+                      <button onClick={submitOrder} style={{ flex: 2, background: "#2d6a4f", color: "#fff", border: "none", borderRadius: 10, padding: "14px", fontSize: 16, fontWeight: 600, cursor: "pointer" }}>Confirmar Pedido</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    {cartItems.map(([pid, qty]) => { const prod = products.find(p => p.id === pid); if (!prod) return null; const hc = parseFloat(prod.hours_component) || 0; return (
+                      <div key={pid} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "1px solid #f0f0f0" }}>
+                        <div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 600 }}>{prod.name}</div><div style={{ fontSize: 12, color: "#888" }}>{fmt(prod.price)} x {qty} = {fmt(prod.price * qty)}</div>{hc > 0 && <div style={{ fontSize: 11, color: "#b5651d" }}>+ {fmtH(hc * qty)}</div>}</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}><button onClick={() => updateCart(pid, -1)} style={qtyBtn}>-</button><span style={{ fontWeight: 700, minWidth: 20, textAlign: "center" }}>{qty}</span><button onClick={() => updateCart(pid, 1)} style={{ ...qtyBtn, background: "#2d6a4f", color: "#fff", border: "none" }}>+</button></div>
+                      </div>); })}
+                    <div style={{ marginTop: 20, padding: "16px 0", borderTop: "2px solid #1a1a1a" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 18, fontWeight: 700 }}><span>Subtotal</span><span style={{ color: "#2d6a4f" }}>{fmt(cartTotal)}</span></div>
+                      {cartTotalHours > 0 && (<div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: "#b5651d", fontWeight: 600, marginTop: 4 }}><span>Horas</span><span>{fmtH(cartTotalHours)}</span></div>)}
+                    </div>
+                    <button onClick={() => setShowPayment(true)} style={{ width: "100%", marginTop: 12, background: "#2d6a4f", color: "#fff", border: "none", borderRadius: 10, padding: "14px", fontSize: 16, fontWeight: 600, cursor: "pointer" }}>Continuar al pago</button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
