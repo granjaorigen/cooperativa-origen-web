@@ -187,7 +187,6 @@ export default function CatalogoPage() {
     );
   }
 
-  // HOURS PANEL
   if (showHoursPanel) {
     return (
       <div style={{ minHeight: "100vh", background: "var(--bg)", padding: 20 }}>
@@ -237,7 +236,6 @@ export default function CatalogoPage() {
     );
   }
 
-  // ORDER HISTORY
   if (showHistory) {
     return (
       <div style={{ minHeight: "100vh", background: "var(--bg)", padding: 20 }}>
@@ -265,7 +263,6 @@ export default function CatalogoPage() {
     );
   }
 
-  // MAIN SHOP
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
       {toast && (<div className="toast" style={{ position: "fixed", top: 16, right: 16, zIndex: 999, background: "#2d6a4f", color: "#fff", padding: "12px 20px", borderRadius: 10, fontSize: 14, fontWeight: 600, boxShadow: "0 4px 16px rgba(0,0,0,0.2)" }}>{toast}</div>)}
@@ -315,11 +312,13 @@ export default function CatalogoPage() {
           const qty = cart[p.id] || 0;
           const hc = parseFloat(p.hours_component) || 0;
           const outOfStock = p.stock <= 0;
+          const isOrigen = p.category_id === "ecorioclaro";
           return (
-            <div key={p.id} style={{ background: "#fff", borderRadius: 12, padding: 16, border: "1px solid #eee", display: "flex", flexDirection: "column", opacity: outOfStock ? 0.5 : 1 }}>
+            <div key={p.id} style={{ background: isOrigen ? "#f0faf4" : "#fff", borderRadius: 12, padding: 16, border: isOrigen ? "2px solid #2d6a4f" : "1px solid #eee", display: "flex", flexDirection: "column", opacity: outOfStock ? 0.5 : 1, position: "relative" }}>
+              {isOrigen && (<div style={{ position: "absolute", top: 8, right: 8, background: "#2d6a4f", color: "#fff", fontSize: 9, fontWeight: 700, padding: "3px 8px", borderRadius: 20, letterSpacing: 0.5 }}>PRODUCTO ORIGEN</div>)}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
                 <div style={{ fontSize: 11, background: (cat?.color || "#333") + "18", color: cat?.color || "#333", padding: "2px 8px", borderRadius: 20, fontWeight: 600 }}>{cat?.icon} {cat?.name}</div>
-                <div style={{ fontSize: 10, color: outOfStock ? "#e63946" : "#888" }}>{outOfStock ? "Agotado" : "Stock: " + p.stock}</div>
+                <div style={{ fontSize: 10, color: outOfStock ? "#e63946" : "#888", marginRight: isOrigen ? 90 : 0 }}>{outOfStock ? "Agotado" : "Stock: " + p.stock}</div>
               </div>
               <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{p.name}</div>
               <div style={{ fontSize: 12, color: "#888", marginBottom: 8 }}>por {p.unit}</div>
