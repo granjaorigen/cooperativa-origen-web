@@ -4,6 +4,11 @@ import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 
 const fmt = (n) => "$" + Math.round(n).toLocaleString("es-CL");
+const fmtH = (h) => {
+  if (h === 0) return "0 hrs";
+  if (h < 0.01) return "< 0,01 hrs";
+  return h.toFixed(2).replace(".", ",") + " hrs";
+};
 
 export default function CatalogoPage() {
   const [session, setSession] = useState(null);
@@ -12,24 +17,24 @@ export default function CatalogoPage() {
   const [loginName, setLoginName] = useState("");
   const [loginSent, setLoginSent] = useState(false);
   const [member, setMember] = useState(null);
+  const [hourValue, setHourValue] = useState(3750);
 
-  // Data
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
   const [cycle, setCycle] = useState(null);
   const [orders, setOrders] = useState([]);
 
-  // UI state
   const [activeCategory, setActiveCategory] = useState("all");
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState({});
   const [showCart, setShowCart] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showPayment, setShowPayment] = useState(false);
+  const [payWithHours, setPayWithHours] = useState(true);
   const [toast, setToast] = useState(null);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
-  // Auth check
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -37,18 +42,15 @@ export default function CatalogoPage() {
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
-      if (event === 'SIGNED_IN') setLoading(false);
+      if (event === "SIGNED_IN") setLoading(false);
     });
     return () => subscription.unsubscribe();
   }, []);
 
-  // Load data when authenticated
   useEffect(() => {
     if (!session) return;
     const loadData = async () => {
       const email = session.user.email;
-
-      // Upsert member
       const { data: existingMember } = await supabase.from("members").select("*").eq("email", email).single();
       if (existingMember) {
         setMember(existingMember);
@@ -56,19 +58,14 @@ export default function CatalogoPage() {
         const { data: newMember } = await supabase.from("members").insert({ email, full_name: session.user.user_metadata?.full_name || email }).select().single();
         setMember(newMember);
       }
-
-      // Load catalog
       const { data: cats } = await supabase.from("categories").select("*").order("sort_order");
       setCategories(cats || []);
-
       const { data: prods } = await supabase.from("products").select("*").eq("is_active", true).order("name");
       setProducts(prods || []);
-
-      // Active cycle
       const { data: activeCycle } = await supabase.from("cycles").select("*").eq("status", "open").order("created_at", { ascending: false }).limit(1).single();
       setCycle(activeCycle);
-
-      // My orders
+      const { data: settingHour } = await supabase.from("settings").select("value").eq("key", "hour_value_clp").single();
+      if (settingHour) setHourValue(parseInt(settingHour.value));
       if (existingMember) {
         const { data: myOrders } = await supabase.from("orders").select("*, order_items(*)").eq("member_id", existingMember.id).order("created_at", { ascending: false });
         setOrders(myOrders || []);
@@ -77,7 +74,6 @@ export default function CatalogoPage() {
     loadData();
   }, [session]);
 
-  // Login handler
   const handleLogin = async () => {
     if (!loginEmail.trim()) return;
     const { error } = await supabase.auth.signInWithOtp({
@@ -97,9 +93,14 @@ export default function CatalogoPage() {
     setCart({});
   };
 
-  // Cart operations
   const updateCart = (pid, delta) => {
-    const newQty = Math.max(0, (cart[pid] || 0) + delta);
+    const prod = products.find(p => p.id === pid);
+    const currentQty = cart[pid] || 0;
+    const newQty = Math.max(0, currentQty + delta);
+    if (delta > 0 && prod && newQty > prod.stock) {
+      showToast("Stock insuficiente");
+      return;
+    }
     const updated = { ...cart, [pid]: newQty };
     if (newQty === 0) delete updated[pid];
     setCart(updated);
@@ -110,22 +111,35 @@ export default function CatalogoPage() {
     const prod = products.find(p => p.id === pid);
     return sum + (prod ? prod.price * qty : 0);
   }, 0);
+  const cartTotalHours = cartItems.reduce((sum, [pid, qty]) => {
+    const prod = products.find(p => p.id === pid);
+    return sum + (prod ? (parseFloat(prod.hours_component) || 0) * qty : 0);
+  }, 0);
   const cartCount = cartItems.reduce((s, [, q]) => s + q, 0);
 
-  // Submit order
+  const hoursBalance = parseFloat(member?.hours_balance) || 0;
+  const hoursToUse = payWithHours ? Math.min(hoursBalance, cartTotalHours) : 0;
+  const hoursToPayInMoney = cartTotalHours - hoursToUse;
+  const hoursMoneyEquivalent = Math.round(hoursToPayInMoney * hourValue);
+  const grandTotal = cartTotal + hoursMoneyEquivalent;
+
   const submitOrder = async () => {
     if (!member || !cycle || cartItems.length === 0) return;
     const { data: order, error: orderError } = await supabase.from("orders").insert({
       member_id: member.id,
       cycle_id: cycle.id,
-      total: cartTotal,
-      status: "confirmado"
+      total: grandTotal,
+      total_hours: cartTotalHours,
+      hours_paid_with_balance: hoursToUse,
+      hours_paid_with_money: hoursToPayInMoney,
+      payment_method: "pending",
+      status: "pendiente_pago"
     }).select().single();
-
     if (orderError) { showToast("Error al enviar pedido"); return; }
 
     const items = cartItems.map(([pid, qty]) => {
       const prod = products.find(p => p.id === pid);
+      const hc = parseFloat(prod.hours_component) || 0;
       return {
         order_id: order.id,
         product_id: pid,
@@ -133,15 +147,31 @@ export default function CatalogoPage() {
         product_unit: prod.unit,
         price: prod.price,
         quantity: qty,
-        subtotal: prod.price * qty
+        subtotal: prod.price * qty,
+        hours_component: hc,
+        hours_subtotal: hc * qty
       };
     });
-
     await supabase.from("order_items").insert(items);
+
+    // Descontar stock
+    for (const [pid, qty] of cartItems) {
+      const prod = products.find(p => p.id === pid);
+      if (prod) {
+        await supabase.from("products").update({ stock: Math.max(0, prod.stock - qty) }).eq("id", pid);
+      }
+    }
+
+    // Descontar horas del balance si se usaron
+    if (hoursToUse > 0) {
+      await supabase.from("members").update({ hours_balance: hoursBalance - hoursToUse }).eq("id", member.id);
+      setMember({ ...member, hours_balance: hoursBalance - hoursToUse });
+    }
+
     setCart({});
     setShowCart(false);
+    setShowPayment(false);
 
-    // Enviar email de confirmación
     try {
       await fetch("/api/send-order", {
         method: "POST",
@@ -150,17 +180,23 @@ export default function CatalogoPage() {
           email: session.user.email,
           name: member?.full_name || "Cooperado",
           items: items,
-          total: cartTotal,
+          total: grandTotal,
+          totalHours: cartTotalHours,
+          hoursUsed: hoursToUse,
+          hoursInMoney: hoursMoneyEquivalent,
           cycleName: cycle.name,
           orderId: order.id.slice(0, 8).toUpperCase(),
           date: new Date().toLocaleDateString("es-CL"),
+          hourValue: hourValue,
         }),
       });
     } catch (e) { console.log("Email error:", e); }
 
-    showToast("¡Pedido enviado correctamente!");
+    showToast("¡Pedido enviado! Pendiente de pago.");
 
-    // Refresh orders
+    // Refresh
+    const { data: prods } = await supabase.from("products").select("*").eq("is_active", true).order("name");
+    setProducts(prods || []);
     const { data: myOrders } = await supabase.from("orders").select("*, order_items(*)").eq("member_id", member.id).order("created_at", { ascending: false });
     setOrders(myOrders || []);
   };
@@ -171,10 +207,17 @@ export default function CatalogoPage() {
     return matchCat && matchSearch;
   });
 
-  // ---- RENDER ----
+  const statusLabels = {
+    pendiente_pago: { text: "⏳ Pendiente de pago", bg: "#fff3cd", color: "#856404" },
+    pagado: { text: "💰 Pagado", bg: "#d4edda", color: "#155724" },
+    preparando: { text: "📦 Preparando", bg: "#d1ecf1", color: "#0c5460" },
+    listo: { text: "✅ Listo para retiro", bg: "#d4edda", color: "#155724" },
+    entregado: { text: "🤝 Entregado", bg: "#e2e3e5", color: "#383d41" },
+    cancelado: { text: "❌ Cancelado", bg: "#f8d7da", color: "#721c24" },
+  };
+
   if (loading) return <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ fontSize: 48 }}>🌱</span></div>;
 
-  // Login screen
   if (!session) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg, #faf9f6 0%, #e8e4dd 100%)", padding: 20 }}>
@@ -194,11 +237,11 @@ export default function CatalogoPage() {
           ) : (
             <>
               <div style={{ marginBottom: 16 }}>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#555", marginBottom: 4 }}>Nombre completo</label>
+                <label style={labelStyle}>Nombre completo</label>
                 <input style={inputStyle} value={loginName} onChange={e => setLoginName(e.target.value)} placeholder="Ej: María González" />
               </div>
               <div style={{ marginBottom: 24 }}>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#555", marginBottom: 4 }}>Correo electrónico</label>
+                <label style={labelStyle}>Correo electrónico</label>
                 <input style={inputStyle} type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} placeholder="maria@ejemplo.cl" onKeyDown={e => e.key === "Enter" && handleLogin()} />
               </div>
               <button onClick={handleLogin} style={{ width: "100%", background: "var(--green-700)", color: "#fff", border: "none", borderRadius: 10, padding: "14px", fontSize: 15, fontWeight: 600, cursor: "pointer" }} disabled={!loginEmail.trim()}>
@@ -215,7 +258,6 @@ export default function CatalogoPage() {
     );
   }
 
-  // Order history
   if (showHistory) {
     return (
       <div style={{ minHeight: "100vh", background: "var(--bg)", padding: 20 }}>
@@ -224,38 +266,48 @@ export default function CatalogoPage() {
           <h2 style={{ fontSize: 20, fontWeight: 700, margin: "16px 0" }}>📋 Historial de Pedidos</h2>
           {orders.length === 0 ? (
             <p style={{ color: "#888" }}>No tienes pedidos anteriores.</p>
-          ) : orders.map(o => (
-            <div key={o.id} style={{ background: "#fff", borderRadius: 12, padding: 16, marginBottom: 12, border: "1px solid #eee" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 4 }}>
-                <span style={{ fontSize: 12, background: "#d4edda", color: "#155724", padding: "2px 8px", borderRadius: 20 }}>✓ {o.status}</span>
-                <span style={{ fontSize: 12, color: "#888" }}>{new Date(o.created_at).toLocaleDateString("es-CL")}</span>
-              </div>
-              {o.order_items?.map((it, i) => (
-                <div key={i} style={{ fontSize: 13, color: "#555", display: "flex", justifyContent: "space-between", padding: "2px 0" }}>
-                  <span>{it.product_name} × {it.quantity}</span><span>{fmt(it.subtotal)}</span>
+          ) : orders.map(o => {
+            const st = statusLabels[o.status] || statusLabels.pendiente_pago;
+            return (
+              <div key={o.id} style={{ background: "#fff", borderRadius: 12, padding: 16, marginBottom: 12, border: "1px solid #eee" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 4 }}>
+                  <span style={{ fontSize: 12, background: st.bg, color: st.color, padding: "2px 8px", borderRadius: 20 }}>{st.text}</span>
+                  <span style={{ fontSize: 12, color: "#888" }}>{new Date(o.created_at).toLocaleDateString("es-CL")}</span>
                 </div>
-              ))}
-              <div style={{ borderTop: "1px solid #eee", marginTop: 8, paddingTop: 8, textAlign: "right", fontWeight: 700, color: "var(--green-700)" }}>{fmt(o.total)}</div>
-            </div>
-          ))}
+                {o.order_items?.map((it, i) => (
+                  <div key={i} style={{ fontSize: 13, color: "#555", display: "flex", justifyContent: "space-between", padding: "2px 0" }}>
+                    <span>{it.product_name} × {it.quantity}</span>
+                    <span>{fmt(it.subtotal)} + {fmtH(parseFloat(it.hours_subtotal) || 0)}</span>
+                  </div>
+                ))}
+                <div style={{ borderTop: "1px solid #eee", marginTop: 8, paddingTop: 8, display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
+                  <span>Total</span>
+                  <span style={{ color: "var(--green-700)" }}>{fmt(o.total)} + {fmtH(parseFloat(o.total_hours) || 0)}</span>
+                </div>
+                {o.status === "pendiente_pago" && (
+                  <div style={{ marginTop: 8, padding: 10, background: "#fff3cd", borderRadius: 8, fontSize: 12, color: "#856404" }}>
+                    💳 Paga por transferencia bancaria o en caja de Mercado Origen para confirmar tu pedido.
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     );
   }
 
-  // Main shop view
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
       {toast && <div className="toast" style={{ position: "fixed", top: 16, right: 16, zIndex: 999, background: "var(--green-700)", color: "#fff", padding: "12px 20px", borderRadius: 10, fontSize: 14, fontWeight: 600, boxShadow: "0 4px 16px rgba(0,0,0,0.2)" }}>✅ {toast}</div>}
 
-      {/* Header */}
       <div style={{ background: "#fff", borderBottom: "1px solid #eee", padding: "12px 20px", position: "sticky", top: 0, zIndex: 100 }}>
         <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ fontSize: 24 }}>🌾</span>
             <div>
               <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.2 }}>Cooperativa Origen</div>
-              <div style={{ fontSize: 11, color: "#888" }}>Hola, {member?.full_name?.split(" ")[0] || "cooperado"}</div>
+              <div style={{ fontSize: 11, color: "#888" }}>Hola, {member?.full_name?.split(" ")[0] || "cooperado"} · ⏱ {fmtH(hoursBalance)}</div>
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -269,7 +321,6 @@ export default function CatalogoPage() {
         </div>
       </div>
 
-      {/* Cycle Banner */}
       <div style={{ maxWidth: 900, margin: "16px auto", padding: "0 20px" }}>
         <div style={{ background: cycle ? "linear-gradient(135deg, #2d6a4f, #40916c)" : "#6c757d", borderRadius: 12, padding: "14px 20px", color: "#fff" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
@@ -282,7 +333,6 @@ export default function CatalogoPage() {
         </div>
       </div>
 
-      {/* Search + Categories */}
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 20px" }}>
         <input style={{ ...inputStyle, marginBottom: 12 }} placeholder="🔍 Buscar producto..." value={search} onChange={e => setSearch(e.target.value)} />
         <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 8 }}>
@@ -295,28 +345,39 @@ export default function CatalogoPage() {
         </div>
       </div>
 
-      {/* Products Grid */}
       <div style={{ maxWidth: 900, margin: "16px auto", padding: "0 20px 100px", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 12 }}>
         {filteredProducts.map(p => {
           const cat = categories.find(c => c.id === p.category_id);
           const qty = cart[p.id] || 0;
+          const hc = parseFloat(p.hours_component) || 0;
+          const outOfStock = p.stock <= 0;
           return (
-            <div key={p.id} style={{ background: "#fff", borderRadius: 12, padding: 16, border: "1px solid #eee", display: "flex", flexDirection: "column" }}>
-              <div style={{ fontSize: 11, background: (cat?.color || "#333") + "18", color: cat?.color || "#333", padding: "2px 8px", borderRadius: 20, fontWeight: 600, alignSelf: "flex-start", marginBottom: 8 }}>
-                {cat?.icon} {cat?.name}
+            <div key={p.id} style={{ background: "#fff", borderRadius: 12, padding: 16, border: "1px solid #eee", display: "flex", flexDirection: "column", opacity: outOfStock ? 0.5 : 1 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                <div style={{ fontSize: 11, background: (cat?.color || "#333") + "18", color: cat?.color || "#333", padding: "2px 8px", borderRadius: 20, fontWeight: 600 }}>
+                  {cat?.icon} {cat?.name}
+                </div>
+                <div style={{ fontSize: 10, color: outOfStock ? "var(--red)" : "#888" }}>
+                  {outOfStock ? "Agotado" : `Stock: ${p.stock}`}
+                </div>
               </div>
               <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{p.name}</div>
               <div style={{ fontSize: 12, color: "#888", marginBottom: 8 }}>por {p.unit}</div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "auto" }}>
-                <div style={{ fontSize: 20, fontWeight: 700, color: "var(--green-700)" }}>{fmt(p.price)}</div>
-                {cycle ? (
+                <div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: "var(--green-700)" }}>{fmt(p.price)}</div>
+                  {hc > 0 && <div style={{ fontSize: 11, color: "#b5651d", fontWeight: 600 }}>+ {fmtH(hc)}</div>}
+                </div>
+                {cycle && !outOfStock ? (
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     {qty > 0 && <button onClick={() => updateCart(p.id, -1)} style={qtyBtn}>−</button>}
                     {qty > 0 && <span style={{ fontSize: 16, fontWeight: 700, minWidth: 24, textAlign: "center" }}>{qty}</span>}
                     <button onClick={() => updateCart(p.id, 1)} style={{ ...qtyBtn, background: "var(--green-700)", color: "#fff", border: "none" }}>+</button>
                   </div>
-                ) : (
+                ) : !cycle ? (
                   <span style={{ fontSize: 11, color: "#999" }}>Sin ciclo activo</span>
+                ) : (
+                  <span style={{ fontSize: 11, color: "var(--red)" }}>Agotado</span>
                 )}
               </div>
             </div>
@@ -324,16 +385,14 @@ export default function CatalogoPage() {
         })}
       </div>
 
-      {/* Floating Cart Button */}
       {cartCount > 0 && !showCart && (
         <div style={{ position: "fixed", bottom: 20, left: "50%", transform: "translateX(-50%)", zIndex: 200 }}>
           <button onClick={() => setShowCart(true)} style={{ background: "var(--green-700)", color: "#fff", border: "none", borderRadius: 50, padding: "14px 28px", fontSize: 15, fontWeight: 600, cursor: "pointer", boxShadow: "0 6px 24px rgba(45,106,79,0.4)", display: "flex", alignItems: "center", gap: 8 }}>
-            🛒 Ver carrito ({cartCount}) — {fmt(cartTotal)}
+            🛒 Ver carrito ({cartCount}) — {fmt(cartTotal)} + {fmtH(cartTotalHours)}
           </button>
         </div>
       )}
 
-      {/* Cart Sidebar */}
       {showCart && (
         <div style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "flex-end" }} onClick={(e) => { if (e.target === e.currentTarget) setShowCart(false); }}>
           <div style={{ width: "100%", maxWidth: 440, background: "#fff", height: "100%", overflowY: "auto", padding: 24 }}>
@@ -341,18 +400,71 @@ export default function CatalogoPage() {
               <h2 style={{ fontSize: 20, fontWeight: 700 }}>🛒 Tu Pedido</h2>
               <button onClick={() => setShowCart(false)} style={{ background: "none", border: "none", fontSize: 24, color: "#999", cursor: "pointer" }}>✕</button>
             </div>
+
             {cartItems.length === 0 ? (
               <p style={{ color: "#888", textAlign: "center", marginTop: 40 }}>Tu carrito está vacío</p>
+            ) : showPayment ? (
+              <div>
+                <h3 style={{ fontSize: 16, marginBottom: 16 }}>💳 Resumen de Pago</h3>
+                <div style={{ background: "#f8f8f8", borderRadius: 10, padding: 16, marginBottom: 16 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14 }}>
+                    <span>Productos (pesos)</span><span style={{ fontWeight: 700 }}>{fmt(cartTotal)}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14 }}>
+                    <span>Componente horas</span><span style={{ fontWeight: 700, color: "#b5651d" }}>{fmtH(cartTotalHours)}</span>
+                  </div>
+                  {hoursBalance > 0 && (
+                    <div style={{ borderTop: "1px solid #ddd", paddingTop: 8, marginTop: 8 }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
+                        <input type="checkbox" checked={payWithHours} onChange={e => setPayWithHours(e.target.checked)} />
+                        Usar mi saldo de horas ({fmtH(hoursBalance)})
+                      </label>
+                      {payWithHours && hoursToUse > 0 && (
+                        <div style={{ fontSize: 12, color: "var(--green-700)", marginTop: 4 }}>
+                          Se descontarán {fmtH(hoursToUse)} de tu saldo
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {hoursToPayInMoney > 0 && (
+                  <div style={{ background: "#fff3cd", borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 13, color: "#856404" }}>
+                    ⏱ {fmtH(hoursToPayInMoney)} en horas equivalen a {fmt(hoursMoneyEquivalent)} (a {fmt(hourValue)}/hr)
+                  </div>
+                )}
+                <div style={{ background: "var(--green-700)", borderRadius: 10, padding: 16, marginBottom: 16, color: "#fff" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 18, fontWeight: 700 }}>
+                    <span>Total a pagar</span><span>{fmt(grandTotal)}</span>
+                  </div>
+                  {hoursToUse > 0 && (
+                    <div style={{ fontSize: 12, opacity: 0.8, marginTop: 4 }}>+ {fmtH(hoursToUse)} descontadas de tu saldo</div>
+                  )}
+                </div>
+                <div style={{ background: "#f0f4f8", borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 13, color: "#555" }}>
+                  <strong>Formas de pago:</strong>
+                  <div style={{ marginTop: 4 }}>• Transferencia bancaria</div>
+                  <div>• Pago en caja de Mercado Origen</div>
+                  <div style={{ marginTop: 8, fontSize: 12, color: "#888" }}>Tu pedido quedará como "Pendiente de pago" hasta que un administrador confirme el pago.</div>
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => setShowPayment(false)} style={{ flex: 1, background: "#f0f0f0", border: "none", borderRadius: 10, padding: "14px", fontSize: 14, cursor: "pointer" }}>← Volver</button>
+                  <button onClick={submitOrder} style={{ flex: 2, background: "var(--green-700)", color: "#fff", border: "none", borderRadius: 10, padding: "14px", fontSize: 16, fontWeight: 600, cursor: "pointer" }}>
+                    ✅ Confirmar Pedido
+                  </button>
+                </div>
+              </div>
             ) : (
               <>
                 {cartItems.map(([pid, qty]) => {
                   const prod = products.find(p => p.id === pid);
                   if (!prod) return null;
+                  const hc = parseFloat(prod.hours_component) || 0;
                   return (
                     <div key={pid} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "1px solid #f0f0f0" }}>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 14, fontWeight: 600 }}>{prod.name}</div>
                         <div style={{ fontSize: 12, color: "#888" }}>{fmt(prod.price)} × {qty} = {fmt(prod.price * qty)}</div>
+                        {hc > 0 && <div style={{ fontSize: 11, color: "#b5651d" }}>+ {fmtH(hc)} × {qty} = {fmtH(hc * qty)}</div>}
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <button onClick={() => updateCart(pid, -1)} style={qtyBtn}>−</button>
@@ -362,11 +474,18 @@ export default function CatalogoPage() {
                     </div>
                   );
                 })}
-                <div style={{ marginTop: 20, padding: "16px 0", borderTop: "2px solid #1a1a1a", display: "flex", justifyContent: "space-between", fontSize: 18, fontWeight: 700 }}>
-                  <span>Total</span><span style={{ color: "var(--green-700)" }}>{fmt(cartTotal)}</span>
+                <div style={{ marginTop: 20, padding: "16px 0", borderTop: "2px solid #1a1a1a" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 18, fontWeight: 700 }}>
+                    <span>Subtotal</span><span style={{ color: "var(--green-700)" }}>{fmt(cartTotal)}</span>
+                  </div>
+                  {cartTotalHours > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: "#b5651d", fontWeight: 600, marginTop: 4 }}>
+                      <span>Horas</span><span>{fmtH(cartTotalHours)}</span>
+                    </div>
+                  )}
                 </div>
-                <button onClick={submitOrder} style={{ width: "100%", marginTop: 12, background: "var(--green-700)", color: "#fff", border: "none", borderRadius: 10, padding: "14px", fontSize: 16, fontWeight: 600, cursor: "pointer" }}>
-                  ✅ Confirmar Pedido
+                <button onClick={() => setShowPayment(true)} style={{ width: "100%", marginTop: 12, background: "var(--green-700)", color: "#fff", border: "none", borderRadius: 10, padding: "14px", fontSize: 16, fontWeight: 600, cursor: "pointer" }}>
+                  Continuar al pago →
                 </button>
               </>
             )}
@@ -377,6 +496,7 @@ export default function CatalogoPage() {
   );
 }
 
+const labelStyle = { display: "block", fontSize: 12, fontWeight: 600, color: "#555", marginBottom: 4 };
 const inputStyle = { width: "100%", padding: "10px 12px", border: "1px solid #ddd", borderRadius: 8, fontSize: 14, boxSizing: "border-box" };
 const pillBtn = { background: "#f0f0f0", border: "none", borderRadius: 20, padding: "8px 14px", fontSize: 13, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap" };
 const catBtn = { border: "none", borderRadius: 20, padding: "8px 14px", fontSize: 12, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.2s" };
