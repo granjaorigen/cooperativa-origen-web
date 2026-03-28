@@ -35,48 +35,26 @@ function generatePickingDoc(order, hourValue) {
   const paymentLabel = isPaid ? "PAGADO CON TRANSFERENCIA" : "COBRAR EN CAJA";
   const paymentColor = isPaid ? "#155724" : "#e65100";
   const paymentBg = isPaid ? "#d4edda" : "#ffe0b2";
-
-  const itemsRows = order.order_items?.map(it => {
-    const hrs = parseFloat(it.hours_subtotal) || 0;
-    return "<tr><td style='padding:6px 10px;border-bottom:1px solid #ddd'>" + it.product_name + "</td><td style='padding:6px 10px;border-bottom:1px solid #ddd;text-align:center'>" + it.quantity + " " + it.product_unit + "</td><td style='padding:6px 10px;border-bottom:1px solid #ddd;text-align:right'>$" + (it.subtotal).toLocaleString("es-CL") + "</td><td style='padding:6px 10px;border-bottom:1px solid #ddd;text-align:center;width:40px'>[ ]</td></tr>";
-  }).join("") || "";
-
   const totalHours = parseFloat(order.total_hours) || 0;
   const hoursUsed = parseFloat(order.hours_paid_with_balance) || 0;
   const hoursInMoney = parseFloat(order.hours_paid_with_money) || 0;
   const hoursMoneyValue = Math.round(hoursInMoney * hourValue);
-
+  const itemsRows = order.order_items?.map(it =>
+    "<tr><td style='padding:6px 10px;border-bottom:1px solid #ddd'>" + it.product_name + "</td><td style='padding:6px 10px;border-bottom:1px solid #ddd;text-align:center'>" + it.quantity + " " + it.product_unit + "</td><td style='padding:6px 10px;border-bottom:1px solid #ddd;text-align:right'>$" + it.subtotal.toLocaleString("es-CL") + "</td><td style='padding:6px 10px;border-bottom:1px solid #ddd;text-align:center;width:40px'>[ ]</td></tr>"
+  ).join("") || "";
   const html = "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Pedido " + order.id.slice(0,8).toUpperCase() + "</title><style>body{font-family:Arial,sans-serif;margin:20px;color:#333}@media print{body{margin:10px}.no-print{display:none}}</style></head><body>" +
-    "<div style='text-align:center;margin-bottom:20px'>" +
-    "<h1 style='margin:0;font-size:22px'>Cooperativa Origen</h1>" +
-    "<p style='margin:4px 0;font-size:13px;color:#888'>Documento de Picking</p>" +
-    "</div>" +
-    "<div style='background:" + paymentBg + ";border:3px solid " + paymentColor + ";border-radius:10px;padding:20px;text-align:center;margin-bottom:20px'>" +
-    "<div style='font-size:28px;font-weight:900;color:" + paymentColor + "'>" + paymentLabel + "</div>" +
-    "</div>" +
-    "<table style='width:100%;margin-bottom:16px;font-size:14px'>" +
-    "<tr><td><strong>Pedido:</strong> " + order.id.slice(0,8).toUpperCase() + "</td><td style='text-align:right'><strong>Fecha:</strong> " + new Date(order.created_at).toLocaleDateString("es-CL") + "</td></tr>" +
-    "<tr><td><strong>Cooperado:</strong> " + (order.members?.full_name || "---") + "</td><td style='text-align:right'><strong>Email:</strong> " + (order.members?.email || "---") + "</td></tr>" +
-    "</table>" +
-    "<table style='width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px'>" +
-    "<thead><tr style='background:#2d6a4f;color:#fff'><th style='padding:8px 10px;text-align:left'>Producto</th><th style='padding:8px 10px;text-align:center'>Cantidad</th><th style='padding:8px 10px;text-align:right'>Subtotal</th><th style='padding:8px 10px;text-align:center'>OK</th></tr></thead>" +
-    "<tbody>" + itemsRows + "</tbody>" +
-    "</table>" +
-    "<div style='border-top:2px solid #333;padding-top:12px;font-size:14px'>" +
-    "<div style='display:flex;justify-content:space-between;margin-bottom:4px'><span>Total productos:</span><strong>$" + order.total.toLocaleString("es-CL") + "</strong></div>" +
+    "<div style='text-align:center;margin-bottom:20px'><h1 style='margin:0;font-size:22px'>Cooperativa Origen</h1><p style='margin:4px 0;font-size:13px;color:#888'>Documento de Picking</p></div>" +
+    "<div style='background:" + paymentBg + ";border:3px solid " + paymentColor + ";border-radius:10px;padding:20px;text-align:center;margin-bottom:20px'><div style='font-size:28px;font-weight:900;color:" + paymentColor + "'>" + paymentLabel + "</div></div>" +
+    "<table style='width:100%;margin-bottom:16px;font-size:14px'><tr><td><strong>Pedido:</strong> " + order.id.slice(0,8).toUpperCase() + "</td><td style='text-align:right'><strong>Fecha:</strong> " + new Date(order.created_at).toLocaleDateString("es-CL") + "</td></tr><tr><td><strong>Cooperado:</strong> " + (order.members?.full_name || "---") + "</td><td style='text-align:right'><strong>Email:</strong> " + (order.members?.email || "---") + "</td></tr></table>" +
+    "<table style='width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px'><thead><tr style='background:#2d6a4f;color:#fff'><th style='padding:8px 10px;text-align:left'>Producto</th><th style='padding:8px 10px;text-align:center'>Cantidad</th><th style='padding:8px 10px;text-align:right'>Subtotal</th><th style='padding:8px 10px;text-align:center'>OK</th></tr></thead><tbody>" + itemsRows + "</tbody></table>" +
+    "<div style='border-top:2px solid #333;padding-top:12px;font-size:14px'><div style='display:flex;justify-content:space-between;margin-bottom:4px'><span>Total productos:</span><strong>$" + order.total.toLocaleString("es-CL") + "</strong></div>" +
     (totalHours > 0 ? "<div style='display:flex;justify-content:space-between;margin-bottom:4px;color:#b5651d'><span>Horas operacionales:</span><strong>" + fmtH(totalHours) + "</strong></div>" : "") +
-    (hoursUsed > 0 ? "<div style='display:flex;justify-content:space-between;margin-bottom:4px;color:#2d6a4f'><span>Horas pagadas con saldo:</span><strong>-" + fmtH(hoursUsed) + "</strong></div>" : "") +
-    (hoursInMoney > 0 ? "<div style='display:flex;justify-content:space-between;margin-bottom:4px'><span>Horas a pagar en pesos (" + fmtH(hoursInMoney) + " x $" + hourValue.toLocaleString("es-CL") + "):</span><strong>$" + hoursMoneyValue.toLocaleString("es-CL") + "</strong></div>" : "") +
+    (hoursUsed > 0 ? "<div style='display:flex;justify-content:space-between;margin-bottom:4px;color:#2d6a4f'><span>Horas con saldo:</span><strong>-" + fmtH(hoursUsed) + "</strong></div>" : "") +
+    (hoursInMoney > 0 ? "<div style='display:flex;justify-content:space-between;margin-bottom:4px'><span>Horas en pesos (" + fmtH(hoursInMoney) + " x $" + hourValue.toLocaleString("es-CL") + "):</span><strong>$" + hoursMoneyValue.toLocaleString("es-CL") + "</strong></div>" : "") +
     "</div>" +
     (isCaja ? "<div style='margin-top:20px;border:2px dashed " + paymentColor + ";border-radius:10px;padding:16px;text-align:center'><div style='font-size:20px;font-weight:700;color:" + paymentColor + "'>MONTO A COBRAR: $" + order.total.toLocaleString("es-CL") + "</div></div>" : "") +
-    "<div style='margin-top:30px;display:flex;justify-content:space-between;font-size:12px;color:#888'>" +
-    "<span>Preparado por: _______________</span>" +
-    "<span>Revisado por: _______________</span>" +
-    "<span>Entregado por: _______________</span>" +
-    "</div>" +
-    "<div class='no-print' style='text-align:center;margin-top:30px'><button onclick='window.print()' style='background:#2d6a4f;color:#fff;border:none;border-radius:10px;padding:12px 32px;font-size:16px;cursor:pointer'>Imprimir</button></div>" +
-    "</body></html>";
-
+    "<div style='margin-top:30px;display:flex;justify-content:space-between;font-size:12px;color:#888'><span>Preparado por: _______________</span><span>Revisado por: _______________</span><span>Entregado por: _______________</span></div>" +
+    "<div class='no-print' style='text-align:center;margin-top:30px'><button onclick='window.print()' style='background:#2d6a4f;color:#fff;border:none;border-radius:10px;padding:12px 32px;font-size:16px;cursor:pointer'>Imprimir</button></div></body></html>";
   const w = window.open("", "_blank");
   w.document.write(html);
   w.document.close();
@@ -90,19 +68,20 @@ export default function AdminPage() {
   const [toast, setToast] = useState(null);
   const [hourValue, setHourValue] = useState(3750);
   const [products, setProducts] = useState([]);
+  const [masterProducts, setMasterProducts] = useState([]);
   const [cycle, setCycle] = useState(null);
   const [allCycles, setAllCycles] = useState([]);
   const [orders, setOrders] = useState([]);
   const [members, setMembers] = useState([]);
   const [workHours, setWorkHours] = useState([]);
+  const [stockEntries, setStockEntries] = useState([]);
   const [editProd, setEditProd] = useState(null);
   const [newProd, setNewProd] = useState(false);
   const [showAddHours, setShowAddHours] = useState(false);
+  const [showStockEntry, setShowStockEntry] = useState(false);
+  const [showAddMaster, setShowAddMaster] = useState(false);
 
-  const showToast = (msg) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
-  };
+  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => { setSession(session); setLoading(false); });
@@ -113,6 +92,8 @@ export default function AdminPage() {
   const refreshData = async () => {
     const { data: prods } = await supabase.from("products").select("*").order("name");
     setProducts(prods || []);
+    const { data: mp } = await supabase.from("master_products").select("*").order("name");
+    setMasterProducts(mp || []);
     const { data: cycles } = await supabase.from("cycles").select("*").order("created_at", { ascending: false });
     setAllCycles(cycles || []);
     setCycle(cycles?.find(c => c.status === "open") || cycles?.[0]);
@@ -122,6 +103,8 @@ export default function AdminPage() {
     setMembers(allMembers || []);
     const { data: wh } = await supabase.from("work_hours").select("*, members(full_name, email)").order("created_at", { ascending: false });
     setWorkHours(wh || []);
+    const { data: se } = await supabase.from("stock_entries").select("*, products(name)").order("created_at", { ascending: false });
+    setStockEntries(se || []);
     const { data: sh } = await supabase.from("settings").select("value").eq("key", "hour_value_clp").single();
     if (sh) setHourValue(parseInt(sh.value));
   };
@@ -140,34 +123,13 @@ export default function AdminPage() {
   const handleLogout = async () => { await supabase.auth.signOut(); };
 
   if (loading) {
-    return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#121212", color: "#fff" }}>
-        <span style={{ fontSize: 20 }}>Cargando...</span>
-      </div>
-    );
+    return (<div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#121212", color: "#fff" }}><span style={{ fontSize: 20 }}>Cargando...</span></div>);
   }
-
   if (!session) {
-    return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#121212", color: "#fff", padding: 20 }}>
-        <div style={{ textAlign: "center" }}>
-          <h2>Acceso Administrador</h2>
-          <p style={{ color: "#888", margin: "12px 0 20px" }}>Debes iniciar sesion primero.</p>
-          <Link href="/catalogo" style={{ background: "#e8c547", color: "#1a1a1a", padding: "12px 24px", borderRadius: 10, fontWeight: 600, display: "inline-block" }}>Ir al Login</Link>
-        </div>
-      </div>
-    );
+    return (<div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#121212", color: "#fff", padding: 20 }}><div style={{ textAlign: "center" }}><h2>Acceso Administrador</h2><p style={{ color: "#888", margin: "12px 0 20px" }}>Debes iniciar sesion primero.</p><Link href="/catalogo" style={{ background: "#e8c547", color: "#1a1a1a", padding: "12px 24px", borderRadius: 10, fontWeight: 600, display: "inline-block" }}>Ir al Login</Link></div></div>);
   }
-
   if (!member || !member.is_admin) {
-    return (
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#121212", color: "#fff", padding: 20 }}>
-        <div style={{ textAlign: "center" }}>
-          <h2>Sin permisos</h2>
-          <Link href="/catalogo" style={{ background: "#2d6a4f", color: "#fff", padding: "12px 24px", borderRadius: 10, fontWeight: 600, display: "inline-block", marginTop: 16 }}>Volver</Link>
-        </div>
-      </div>
-    );
+    return (<div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#121212", color: "#fff", padding: 20 }}><div style={{ textAlign: "center" }}><h2>Sin permisos</h2><Link href="/catalogo" style={{ background: "#2d6a4f", color: "#fff", padding: "12px 24px", borderRadius: 10, fontWeight: 600, display: "inline-block", marginTop: 16 }}>Volver</Link></div></div>);
   }
 
   const cycleOrders = orders.filter(o => o.cycle_id === cycle?.id);
@@ -179,9 +141,7 @@ export default function AdminPage() {
   const consolidated = {};
   cycleOrders.filter(o => o.status !== "cancelado").forEach(o => {
     o.order_items?.forEach(it => {
-      if (!consolidated[it.product_id]) {
-        consolidated[it.product_id] = { ...it, totalQty: 0, totalAmount: 0, totalHours: 0 };
-      }
+      if (!consolidated[it.product_id]) consolidated[it.product_id] = { ...it, totalQty: 0, totalAmount: 0, totalHours: 0 };
       consolidated[it.product_id].totalQty += it.quantity;
       consolidated[it.product_id].totalAmount += it.subtotal;
       consolidated[it.product_id].totalHours += parseFloat(it.hours_subtotal) || 0;
@@ -196,11 +156,9 @@ export default function AdminPage() {
   };
 
   const createNewCycle = async () => {
-    const t = new Date();
-    const e = new Date(t);
-    e.setDate(e.getDate() + 14);
+    const t = new Date(); const e = new Date(t); e.setDate(e.getDate() + 14);
     const name = "Ciclo " + t.toLocaleDateString("es-CL", { month: "long" }) + " Q" + Math.ceil(t.getDate() / 15) + " " + t.getFullYear();
-    const { data } = await supabase.from("cycles").insert({ name: name, status: "open", start_date: t.toISOString().slice(0, 10), end_date: e.toISOString().slice(0, 10) }).select().single();
+    const { data } = await supabase.from("cycles").insert({ name, status: "open", start_date: t.toISOString().slice(0, 10), end_date: e.toISOString().slice(0, 10) }).select().single();
     if (data) { setCycle(data); setAllCycles([data, ...allCycles]); showToast("Nuevo ciclo creado"); }
   };
 
@@ -214,8 +172,7 @@ export default function AdminPage() {
       if (data) setProducts([...products, data]);
       showToast("Producto agregado");
     }
-    setEditProd(null);
-    setNewProd(false);
+    setEditProd(null); setNewProd(false);
   };
 
   const deleteProduct = async (id) => {
@@ -248,30 +205,95 @@ export default function AdminPage() {
     showToast("Pago en caja confirmado");
   };
 
+  const submitStockEntry = async (entry) => {
+    try {
+      // Buscar si el producto ya existe en el catalogo
+      const mp = masterProducts.find(m => m.id === entry.masterProductId);
+      if (!mp) { showToast("Producto no encontrado"); return; }
+
+      let productId;
+      const existingProduct = products.find(p => p.name === mp.name);
+
+      if (existingProduct) {
+        // Actualizar stock y precio del producto existente
+        const newStock = existingProduct.stock + entry.quantity;
+        const salePrice = entry.totalPrice; // precio con IVA por unidad
+        await supabase.from("products").update({
+          stock: newStock,
+          price: salePrice,
+        }).eq("id", existingProduct.id);
+        productId = existingProduct.id;
+        setProducts(products.map(p => p.id === existingProduct.id ? { ...p, stock: newStock, price: salePrice } : p));
+      } else {
+        // Crear nuevo producto en el catalogo
+        const { data: newProd } = await supabase.from("products").insert({
+          name: mp.name,
+          category_id: mp.category_id,
+          unit: mp.unit,
+          price: entry.totalPrice,
+          stock: entry.quantity,
+          hours_component: entry.hoursComponent || 0,
+          is_active: true,
+        }).select().single();
+        if (newProd) {
+          productId = newProd.id;
+          setProducts([...products, newProd]);
+        }
+      }
+
+      // Registrar el ingreso
+      const { error } = await supabase.from("stock_entries").insert({
+        product_id: productId,
+        master_product_id: entry.masterProductId,
+        quantity: entry.quantity,
+        net_price: entry.netPrice,
+        iva: entry.iva,
+        total_price: entry.totalPrice,
+        doc_type: entry.docType,
+        doc_number: entry.docNumber,
+        supplier_name: entry.supplierName,
+        supplier_rut: entry.supplierRut,
+        cycle_id: cycle?.id,
+        notes: entry.notes,
+      });
+
+      if (error) { console.log("Error stock entry:", error); showToast("Error al registrar"); return; }
+
+      // Refrescar ingresos
+      const { data: se } = await supabase.from("stock_entries").select("*, products(name)").order("created_at", { ascending: false });
+      setStockEntries(se || []);
+
+      showToast("Ingreso registrado, stock y precio actualizados");
+    } catch (e) {
+      console.log("Error:", e);
+      showToast("Error inesperado");
+    }
+    setShowStockEntry(false);
+  };
+
+  const addMasterProduct = async (name, categoryId, unit) => {
+    const { data } = await supabase.from("master_products").insert({ name, category_id: categoryId, unit }).select().single();
+    if (data) {
+      setMasterProducts([...masterProducts, data]);
+      showToast("Producto agregado a la maestra");
+    }
+    setShowAddMaster(false);
+  };
+
   const addWorkHoursForMember = async (memberId, hours, description, workDate) => {
     try {
-      const { data, error } = await supabase.from("work_hours").insert({
-        member_id: memberId,
-        hours: parseFloat(hours),
-        description: description,
-        work_date: workDate,
-        status: "aprobado",
-        approved_by: member.id,
-        approved_at: new Date().toISOString()
-      }).select().single();
-      if (error) { console.log("Error work_hours:", error); showToast("Error al registrar"); return; }
+      const { error } = await supabase.from("work_hours").insert({ member_id: memberId, hours: parseFloat(hours), description, work_date: workDate, status: "aprobado", approved_by: member.id, approved_at: new Date().toISOString() }).select().single();
+      if (error) { console.log("Error:", error); showToast("Error al registrar"); return; }
       const target = members.find(m => m.id === memberId);
       if (target) {
-        const currentBalance = parseFloat(target.hours_balance) || 0;
-        const newBalance = currentBalance + parseFloat(hours);
-        const { error: errMember } = await supabase.from("members").update({ hours_balance: newBalance }).eq("id", memberId);
-        if (errMember) { console.log("Error balance:", errMember); }
+        const newBalance = (parseFloat(target.hours_balance) || 0) + parseFloat(hours);
+        await supabase.from("members").update({ hours_balance: newBalance }).eq("id", memberId);
         setMembers(members.map(m => m.id === memberId ? { ...m, hours_balance: newBalance } : m));
       }
       const { data: wh } = await supabase.from("work_hours").select("*, members(full_name, email)").order("created_at", { ascending: false });
       setWorkHours(wh || []);
       showToast("Horas registradas y acreditadas");
-    } catch (e) { console.log("Catch error:", e); showToast("Error inesperado"); }
+    } catch (e) { console.log("Error:", e); showToast("Error inesperado"); }
     setShowAddHours(false);
   };
 
@@ -295,31 +317,21 @@ export default function AdminPage() {
 
   const exportCSV = () => {
     const rows = [["Producto", "Unidad", "Precio Unit.", "Horas Unit.", "Cant. Total", "Monto Total", "Horas Total"]];
-    Object.values(consolidated).forEach(c => {
-      rows.push([c.product_name, c.product_unit, c.price, parseFloat(c.hours_component) || 0, c.totalQty, c.totalAmount, c.totalHours.toFixed(2)]);
-    });
+    Object.values(consolidated).forEach(c => rows.push([c.product_name, c.product_unit, c.price, parseFloat(c.hours_component) || 0, c.totalQty, c.totalAmount, c.totalHours.toFixed(2)]));
     rows.push(["", "", "", "", "TOTAL", totalRevenue, Object.values(consolidated).reduce((s, c) => s + c.totalHours, 0).toFixed(2)]);
     const blob = new Blob(["\uFEFF" + rows.map(r => r.join(";")).join("\n")], { type: "text/csv;charset=utf-8" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
     a.download = "consolidado_" + (cycle?.name?.replace(/ /g, "_") || "export") + ".csv";
-    a.click();
-    showToast("CSV exportado");
+    a.click(); showToast("CSV exportado");
   };
 
   return (
     <div style={{ minHeight: "100vh", background: "#121212", color: "#e0e0e0" }}>
-      {toast && (
-        <div className="toast" style={{ position: "fixed", top: 16, right: 16, zIndex: 999, background: "#2d6a4f", color: "#fff", padding: "12px 20px", borderRadius: 10, fontSize: 14, fontWeight: 600, boxShadow: "0 4px 16px rgba(0,0,0,0.2)" }}>
-          {toast}
-        </div>
-      )}
+      {toast && (<div className="toast" style={{ position: "fixed", top: 16, right: 16, zIndex: 999, background: "#2d6a4f", color: "#fff", padding: "12px 20px", borderRadius: 10, fontSize: 14, fontWeight: 600, boxShadow: "0 4px 16px rgba(0,0,0,0.2)" }}>{toast}</div>)}
 
       <div style={{ background: "#1a1a1a", borderBottom: "1px solid #333", padding: "12px 20px" }}>
-        <div style={{ maxWidth: 1000, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 16, fontWeight: 700, color: "#e8c547" }}>Admin - Cooperativa Origen</span>
-          </div>
+        <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+          <span style={{ fontSize: 16, fontWeight: 700, color: "#e8c547" }}>Admin - Cooperativa Origen</span>
           <div style={{ display: "flex", gap: 8 }}>
             <Link href="/catalogo" style={pillD}>Catalogo</Link>
             <button onClick={handleLogout} style={pillD}>Salir</button>
@@ -327,13 +339,13 @@ export default function AdminPage() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 1000, margin: "16px auto", padding: "0 20px", display: "flex", gap: 8, overflowX: "auto" }}>
-        {[["dashboard", "Dashboard"], ["products", "Productos"], ["orders", "Pedidos"], ["consolidated", "Consolidado"], ["hours", "Horas"], ["members", "Miembros"]].map(([key, label]) => (
-          <button key={key} onClick={() => setTab(key)} style={{ border: "none", borderRadius: 20, padding: "8px 16px", fontSize: 12, fontWeight: tab === key ? 700 : 400, background: tab === key ? "#e8c547" : "#222", color: tab === key ? "#1a1a1a" : "#999", cursor: "pointer", whiteSpace: "nowrap" }}>{label}</button>
+      <div style={{ maxWidth: 1100, margin: "16px auto", padding: "0 20px", display: "flex", gap: 6, overflowX: "auto" }}>
+        {[["dashboard", "Dashboard"], ["stock", "Ingreso Mercaderia"], ["products", "Productos"], ["orders", "Pedidos"], ["consolidated", "Consolidado"], ["hours", "Horas"], ["members", "Miembros"]].map(([key, label]) => (
+          <button key={key} onClick={() => setTab(key)} style={{ border: "none", borderRadius: 20, padding: "8px 14px", fontSize: 11, fontWeight: tab === key ? 700 : 400, background: tab === key ? "#e8c547" : "#222", color: tab === key ? "#1a1a1a" : "#999", cursor: "pointer", whiteSpace: "nowrap" }}>{label}</button>
         ))}
       </div>
 
-      <div style={{ maxWidth: 1000, margin: "0 auto", padding: "0 20px 40px" }}>
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 20px 40px" }}>
 
         {tab === "dashboard" && (
           <div>
@@ -350,7 +362,7 @@ export default function AdminPage() {
                 </div>
               </div>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
               {[
                 { l: "Pedidos", v: cycleOrders.length },
                 { l: "Pago pendiente", v: pendingPayment },
@@ -358,13 +370,60 @@ export default function AdminPage() {
                 { l: "Cooperados", v: uniqueUsers },
                 { l: "Venta total", v: fmt(totalRevenue) },
                 { l: "Productos", v: products.filter(p => p.is_active).length },
+                { l: "Maestra", v: masterProducts.length },
               ].map((x, i) => (
-                <div key={i} style={{ background: "#1e1e1e", borderRadius: 12, padding: 16, border: "1px solid #333" }}>
-                  <div style={{ fontSize: 22, fontWeight: 700, color: "#e8c547" }}>{x.v}</div>
-                  <div style={{ fontSize: 11, color: "#888", marginTop: 2 }}>{x.l}</div>
+                <div key={i} style={{ background: "#1e1e1e", borderRadius: 12, padding: 14, border: "1px solid #333" }}>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: "#e8c547" }}>{x.v}</div>
+                  <div style={{ fontSize: 10, color: "#888", marginTop: 2 }}>{x.l}</div>
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {tab === "stock" && (
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
+              <h3 style={{ color: "#e8c547" }}>Ingreso de Mercaderia</h3>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => setShowAddMaster(true)} style={{ ...pillD, background: "#444", color: "#e8c547" }}>+ Nuevo en Maestra</button>
+                <button onClick={() => setShowStockEntry(true)} style={{ ...pillD, background: "#2d6a4f", color: "#fff" }}>+ Registrar Ingreso</button>
+              </div>
+            </div>
+
+            {showAddMaster && <AddMasterForm onSave={addMasterProduct} onCancel={() => setShowAddMaster(false)} />}
+            {showStockEntry && <StockEntryForm masterProducts={masterProducts} cycle={cycle} onSave={submitStockEntry} onCancel={() => setShowStockEntry(false)} />}
+
+            <h4 style={{ color: "#888", fontSize: 13, marginBottom: 8 }}>Ultimos ingresos</h4>
+            {stockEntries.length === 0 ? (<p style={{ color: "#888" }}>Sin ingresos registrados.</p>) :
+              stockEntries.slice(0, 20).map(se => (
+                <div key={se.id} style={{ background: "#1e1e1e", borderRadius: 10, padding: "12px 16px", marginBottom: 6, border: "1px solid #333" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 4 }}>
+                    <div>
+                      <span style={{ fontWeight: 600, fontSize: 14 }}>{se.products?.name || "---"}</span>
+                      <span style={{ color: "#888", fontSize: 12, marginLeft: 8 }}>x{se.quantity}</span>
+                    </div>
+                    <span style={{ fontSize: 12, color: "#888" }}>{new Date(se.created_at).toLocaleDateString("es-CL")}</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>
+                    {se.doc_type.toUpperCase()} {se.doc_number ? "N" + se.doc_number : ""} | Neto: {fmt(se.net_price)} + IVA: {fmt(se.iva)} = {fmt(se.total_price)}/u
+                    {se.supplier_name && (" | " + se.supplier_name)}
+                    {se.supplier_rut && (" - " + se.supplier_rut)}
+                  </div>
+                </div>
+              ))
+            }
+
+            <h4 style={{ color: "#888", fontSize: 13, marginTop: 24, marginBottom: 8 }}>Maestra de Productos ({masterProducts.length})</h4>
+            {masterProducts.map(mp => {
+              const cat = CATEGORIES.find(c => c.id === mp.category_id);
+              return (
+                <div key={mp.id} style={{ background: "#1e1e1e", borderRadius: 8, padding: "8px 14px", marginBottom: 4, border: "1px solid #333", fontSize: 13, display: "flex", justifyContent: "space-between" }}>
+                  <span>{cat?.icon} {mp.name}</span>
+                  <span style={{ color: "#888" }}>{mp.unit} | {cat?.name}</span>
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -372,7 +431,7 @@ export default function AdminPage() {
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <h3 style={{ color: "#e8c547" }}>Catalogo ({products.length})</h3>
-              <button onClick={() => { setNewProd(true); setEditProd(null); }} style={{ ...pillD, background: "#2d6a4f", color: "#fff" }}>+ Agregar</button>
+              <button onClick={() => { setNewProd(true); setEditProd(null); }} style={{ ...pillD, background: "#2d6a4f", color: "#fff" }}>+ Agregar manual</button>
             </div>
             {(newProd || editProd) && <ProductForm product={editProd} onSave={saveProduct} onCancel={() => { setEditProd(null); setNewProd(false); }} />}
             {products.map(p => {
@@ -399,19 +458,14 @@ export default function AdminPage() {
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
               <h3 style={{ color: "#e8c547" }}>Pedidos: {cycle?.name}</h3>
-              <select style={selectDark} value={cycle?.id || ""} onChange={e => setCycle(allCycles.find(c => c.id === e.target.value))}>
-                {allCycles.map(c => (<option key={c.id} value={c.id}>{c.name} ({c.status})</option>))}
-              </select>
+              <select style={selectDark} value={cycle?.id || ""} onChange={e => setCycle(allCycles.find(c => c.id === e.target.value))}>{allCycles.map(c => (<option key={c.id} value={c.id}>{c.name} ({c.status})</option>))}</select>
             </div>
             {cycleOrders.length === 0 ? (<p style={{ color: "#888" }}>Sin pedidos.</p>) : cycleOrders.map(o => {
               const st = STATUS_LABELS[o.status] || STATUS_LABELS.pendiente_pago;
               return (
                 <div key={o.id} style={{ background: "#1e1e1e", borderRadius: 10, padding: 16, marginBottom: 10, border: "1px solid #333" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 4 }}>
-                    <div>
-                      <strong>{o.members?.full_name}</strong>
-                      <span style={{ color: "#888", fontSize: 12, marginLeft: 8 }}>{o.members?.email}</span>
-                    </div>
+                    <div><strong>{o.members?.full_name}</strong><span style={{ color: "#888", fontSize: 12, marginLeft: 8 }}>{o.members?.email}</span></div>
                     <span style={{ fontSize: 11, background: st.bg, color: st.color, padding: "2px 8px", borderRadius: 20 }}>{st.text}</span>
                   </div>
                   {o.order_items?.map((it, i) => (
@@ -433,9 +487,7 @@ export default function AdminPage() {
                           <button onClick={() => handleCajaPayment(o)} style={{ ...pillD, background: "#e65100", color: "#fff", fontSize: 11 }}>Cobrar en caja</button>
                         </>
                       )}
-                      {o.status === "cobrar_en_caja" && (
-                        <button onClick={() => confirmCajaPayment(o)} style={{ ...pillD, background: "#2d6a4f", color: "#fff", fontSize: 11 }}>Confirmar pago caja</button>
-                      )}
+                      {o.status === "cobrar_en_caja" && (<button onClick={() => confirmCajaPayment(o)} style={{ ...pillD, background: "#2d6a4f", color: "#fff", fontSize: 11 }}>Confirmar pago caja</button>)}
                       {(o.status === "pagado" || o.status === "preparando" || o.status === "listo") && (
                         <select style={selectDark} value={o.status} onChange={e => updateOrderStatus(o.id, e.target.value)}>
                           <option value="pagado">pagado</option>
@@ -491,7 +543,7 @@ export default function AdminPage() {
         {tab === "hours" && (
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
-              <h3 style={{ color: "#e8c547" }}>Registro de Horas de Trabajo</h3>
+              <h3 style={{ color: "#e8c547" }}>Registro de Horas</h3>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <span style={{ fontSize: 12, color: "#888" }}>Valor hora: {fmt(hourValue)}</span>
                 <button onClick={() => setShowAddHours(true)} style={{ ...pillD, background: "#2d6a4f", color: "#fff" }}>+ Registrar horas</button>
@@ -504,15 +556,13 @@ export default function AdminPage() {
                   <div style={{ fontSize: 14, fontWeight: 600 }}>{wh.members?.full_name || "---"}</div>
                   <div style={{ fontSize: 12, color: "#888" }}>{wh.description} | {wh.work_date} | {fmtH(wh.hours)}</div>
                 </div>
-                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <div style={{ display: "flex", gap: 6 }}>
                   {wh.status === "pendiente" ? (
                     <>
                       <button onClick={() => approveWorkHours(wh)} style={{ ...pillD, background: "#2d6a4f", color: "#fff", fontSize: 11 }}>Aprobar</button>
                       <button onClick={() => rejectWorkHours(wh)} style={{ ...pillD, background: "#e63946", color: "#fff", fontSize: 11 }}>Rechazar</button>
                     </>
-                  ) : (
-                    <span style={{ fontSize: 11, color: wh.status === "aprobado" ? "#40916c" : "#e63946" }}>{wh.status === "aprobado" ? "Aprobado" : "Rechazado"}</span>
-                  )}
+                  ) : (<span style={{ fontSize: 11, color: wh.status === "aprobado" ? "#40916c" : "#e63946" }}>{wh.status === "aprobado" ? "Aprobado" : "Rechazado"}</span>)}
                 </div>
               </div>
             ))}
@@ -538,6 +588,144 @@ export default function AdminPage() {
           </div>
         )}
 
+      </div>
+    </div>
+  );
+}
+
+function StockEntryForm({ masterProducts, cycle, onSave, onCancel }) {
+  const [masterProductId, setMasterProductId] = useState("");
+  const [quantity, setQuantity] = useState(1);
+  const [netPrice, setNetPrice] = useState(0);
+  const [ivaRate, setIvaRate] = useState(19);
+  const [docType, setDocType] = useState("factura");
+  const [docNumber, setDocNumber] = useState("");
+  const [supplierName, setSupplierName] = useState("");
+  const [supplierRut, setSupplierRut] = useState("");
+  const [hoursComponent, setHoursComponent] = useState(0);
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const iva = Math.round(netPrice * ivaRate / 100);
+  const totalPrice = netPrice + iva;
+
+  const handleSave = async () => {
+    if (!masterProductId || quantity <= 0 || netPrice <= 0) return;
+    setSaving(true);
+    await onSave({
+      masterProductId,
+      quantity,
+      netPrice,
+      iva,
+      totalPrice,
+      docType,
+      docNumber,
+      supplierName,
+      supplierRut,
+      hoursComponent,
+      notes,
+    });
+    setSaving(false);
+  };
+
+  return (
+    <div style={{ background: "#2a2a2a", borderRadius: 10, padding: 16, marginBottom: 16, border: "1px solid #444" }}>
+      <h4 style={{ color: "#e8c547", marginBottom: 12, fontSize: 14 }}>Nuevo Ingreso de Mercaderia</h4>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <div style={{ gridColumn: "1 / -1" }}>
+          <label style={labD}>Producto (de la maestra)</label>
+          <select style={inpD} value={masterProductId} onChange={e => setMasterProductId(e.target.value)}>
+            <option value="">Seleccionar producto...</option>
+            {masterProducts.map(mp => {
+              const cat = CATEGORIES.find(c => c.id === mp.category_id);
+              return (<option key={mp.id} value={mp.id}>{cat?.icon} {mp.name} ({mp.unit})</option>);
+            })}
+          </select>
+        </div>
+        <div>
+          <label style={labD}>Cantidad</label>
+          <input style={inpD} type="number" min="1" value={quantity} onChange={e => setQuantity(parseInt(e.target.value) || 0)} />
+        </div>
+        <div>
+          <label style={labD}>Horas componente (por unidad)</label>
+          <input style={inpD} type="number" step="0.01" value={hoursComponent} onChange={e => setHoursComponent(parseFloat(e.target.value) || 0)} />
+        </div>
+        <div>
+          <label style={labD}>Precio neto por unidad (CLP)</label>
+          <input style={inpD} type="number" value={netPrice} onChange={e => setNetPrice(parseInt(e.target.value) || 0)} />
+        </div>
+        <div>
+          <label style={labD}>IVA %</label>
+          <select style={inpD} value={ivaRate} onChange={e => setIvaRate(parseInt(e.target.value))}>
+            <option value={19}>19% (estandar)</option>
+            <option value={0}>0% (exento)</option>
+          </select>
+        </div>
+        <div style={{ gridColumn: "1 / -1", background: "#333", borderRadius: 8, padding: 10, fontSize: 13 }}>
+          <div style={{ display: "flex", justifyContent: "space-between" }}><span>Neto:</span><strong>{fmt(netPrice)}</strong></div>
+          <div style={{ display: "flex", justifyContent: "space-between" }}><span>IVA ({ivaRate}%):</span><strong>{fmt(iva)}</strong></div>
+          <div style={{ display: "flex", justifyContent: "space-between", color: "#e8c547", fontSize: 15 }}><span>Total por unidad:</span><strong>{fmt(totalPrice)}</strong></div>
+          <div style={{ display: "flex", justifyContent: "space-between", color: "#888", marginTop: 4 }}><span>Total ingreso ({quantity} u.):</span><strong>{fmt(totalPrice * quantity)}</strong></div>
+        </div>
+        <div>
+          <label style={labD}>Tipo documento</label>
+          <select style={inpD} value={docType} onChange={e => setDocType(e.target.value)}>
+            <option value="factura">Factura</option>
+            <option value="boleta">Boleta</option>
+            <option value="otro">Otro</option>
+          </select>
+        </div>
+        <div>
+          <label style={labD}>N documento</label>
+          <input style={inpD} value={docNumber} onChange={e => setDocNumber(e.target.value)} placeholder="Ej: 001234" />
+        </div>
+        <div>
+          <label style={labD}>Razon social proveedor</label>
+          <input style={inpD} value={supplierName} onChange={e => setSupplierName(e.target.value)} placeholder="Ej: Distribuidora XYZ Ltda." />
+        </div>
+        <div>
+          <label style={labD}>RUT proveedor</label>
+          <input style={inpD} value={supplierRut} onChange={e => setSupplierRut(e.target.value)} placeholder="Ej: 76.123.456-7" />
+        </div>
+        <div style={{ gridColumn: "1 / -1" }}>
+          <label style={labD}>Notas (opcional)</label>
+          <input style={inpD} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Observaciones..." />
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+        <button onClick={onCancel} style={pillD}>Cancelar</button>
+        <button onClick={handleSave} disabled={saving || !masterProductId || quantity <= 0 || netPrice <= 0} style={{ ...pillD, background: saving ? "#555" : "#e8c547", color: "#1a1a1a", opacity: (!masterProductId || quantity <= 0 || netPrice <= 0) ? 0.5 : 1 }}>
+          {saving ? "Guardando..." : "Registrar Ingreso"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AddMasterForm({ onSave, onCancel }) {
+  const [name, setName] = useState("");
+  const [categoryId, setCategoryId] = useState("frutas");
+  const [unit, setUnit] = useState("kg");
+  return (
+    <div style={{ background: "#2a2a2a", borderRadius: 10, padding: 16, marginBottom: 16, border: "1px solid #444" }}>
+      <h4 style={{ color: "#e8c547", marginBottom: 12, fontSize: 14 }}>Agregar Producto a la Maestra</h4>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+        <div style={{ gridColumn: "1 / -1" }}>
+          <label style={labD}>Nombre del producto</label>
+          <input style={inpD} value={name} onChange={e => setName(e.target.value)} placeholder="Ej: Arroz Integral" />
+        </div>
+        <div>
+          <label style={labD}>Categoria</label>
+          <select style={inpD} value={categoryId} onChange={e => setCategoryId(e.target.value)}>{CATEGORIES.map(c => (<option key={c.id} value={c.id}>{c.icon} {c.name}</option>))}</select>
+        </div>
+        <div>
+          <label style={labD}>Unidad</label>
+          <input style={inpD} value={unit} onChange={e => setUnit(e.target.value)} placeholder="kg, litro, unidad..." />
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+        <button onClick={onCancel} style={pillD}>Cancelar</button>
+        <button onClick={() => { if (name.trim()) onSave(name.trim(), categoryId, unit); }} style={{ ...pillD, background: "#e8c547", color: "#1a1a1a", opacity: !name.trim() ? 0.5 : 1 }}>Agregar a Maestra</button>
       </div>
     </div>
   );
