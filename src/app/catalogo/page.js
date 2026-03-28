@@ -53,23 +53,15 @@ export default function CatalogoPage() {
         const { data: newMember } = await supabase.from("members").insert({ email, full_name: session.user.user_metadata?.full_name || email }).select().single();
         setMember(newMember);
       }
-      const { data: cats } = await supabase.from("categories").select("*").order("sort_order");
-      setCategories(cats || []);
-      const { data: prods } = await supabase.from("products").select("*").eq("is_active", true).order("name");
-      setProducts(prods || []);
-      const { data: activeCycle } = await supabase.from("cycles").select("*").eq("status", "open").order("created_at", { ascending: false }).limit(1).single();
-      setCycle(activeCycle);
-      const { data: settingHour } = await supabase.from("settings").select("value").eq("key", "hour_value_clp").single();
-      if (settingHour) setHourValue(parseInt(settingHour.value));
+      const { data: cats } = await supabase.from("categories").select("*").order("sort_order"); setCategories(cats || []);
+      const { data: prods } = await supabase.from("products").select("*").eq("is_active", true).order("name"); setProducts(prods || []);
+      const { data: activeCycle } = await supabase.from("cycles").select("*").eq("status", "open").order("created_at", { ascending: false }).limit(1).single(); setCycle(activeCycle);
+      const { data: settingHour } = await supabase.from("settings").select("value").eq("key", "hour_value_clp").single(); if (settingHour) setHourValue(parseInt(settingHour.value));
       if (existingMember) {
-        const { data: myOrders } = await supabase.from("orders").select("*, order_items(*)").eq("member_id", existingMember.id).order("created_at", { ascending: false });
-        setOrders(myOrders || []);
-        const { data: wh } = await supabase.from("work_hours").select("*").eq("member_id", existingMember.id).order("created_at", { ascending: false });
-        setMyWorkHours(wh || []);
-        const { data: shifts } = await supabase.from("work_shifts").select("*").eq("status", "open").order("shift_date", { ascending: true });
-        setAvailableShifts(shifts || []);
-        const { data: signups } = await supabase.from("shift_signups").select("*").eq("member_id", existingMember.id);
-        setMySignups(signups || []);
+        const { data: myOrders } = await supabase.from("orders").select("*, order_items(*)").eq("member_id", existingMember.id).order("created_at", { ascending: false }); setOrders(myOrders || []);
+        const { data: wh } = await supabase.from("work_hours").select("*").eq("member_id", existingMember.id).order("created_at", { ascending: false }); setMyWorkHours(wh || []);
+        const { data: shifts } = await supabase.from("work_shifts").select("*").eq("status", "open").order("shift_date", { ascending: true }); setAvailableShifts(shifts || []);
+        const { data: signups } = await supabase.from("shift_signups").select("*").eq("member_id", existingMember.id); setMySignups(signups || []);
       }
     };
     loadData();
@@ -133,7 +125,7 @@ export default function CatalogoPage() {
     if (hoursToUse > 0) { await supabase.from("members").update({ hours_balance: hoursBalance - hoursToUse }).eq("id", member.id); setMember({ ...member, hours_balance: hoursBalance - hoursToUse }); }
     setCart({}); setShowCart(false); setShowPayment(false);
     try { await fetch("/api/send-order", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: session.user.email, name: member?.full_name || "Cooperado", items, total: grandTotal, totalHours: cartTotalHours, hoursUsed: hoursToUse, hoursInMoney: hoursMoneyEquivalent, cycleName: cycle.name, orderId: order.id.slice(0, 8).toUpperCase(), date: new Date().toLocaleDateString("es-CL"), hourValue }) }); } catch (e) { console.log("Email error:", e); }
-    showToast("Pedido enviado! Pendiente de pago.");
+    showToast("Pedido enviado!");
     const { data: prods } = await supabase.from("products").select("*").eq("is_active", true).order("name"); setProducts(prods || []);
     const { data: myOrders } = await supabase.from("orders").select("*, order_items(*)").eq("member_id", member.id).order("created_at", { ascending: false }); setOrders(myOrders || []);
   };
@@ -171,8 +163,8 @@ export default function CatalogoPage() {
             <div style={{ textAlign: "center", padding: 20 }}>
               <div style={{ fontSize: 48, marginBottom: 16 }}>📧</div>
               <h3 style={{ marginBottom: 8 }}>Revisa tu correo</h3>
-              <p style={{ color: "#888", fontSize: 14 }}>Enlace de acceso enviado a <strong>{loginEmail}</strong>.</p>
-              <button onClick={() => setLoginSent(false)} style={{ marginTop: 16, background: "none", border: "1px solid #ddd", borderRadius: 8, padding: "8px 16px", fontSize: 13, cursor: "pointer" }}>Intentar con otro correo</button>
+              <p style={{ color: "#888", fontSize: 14 }}>Enlace enviado a <strong>{loginEmail}</strong>.</p>
+              <button onClick={() => setLoginSent(false)} style={{ marginTop: 16, background: "none", border: "1px solid #ddd", borderRadius: 8, padding: "8px 16px", fontSize: 13, cursor: "pointer" }}>Otro correo</button>
             </div>
           ) : (
             <div>
@@ -222,8 +214,8 @@ export default function CatalogoPage() {
               );
             })}</div>
           )}
-          <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Historial de Horas Trabajadas</h3>
-          {myWorkHours.length === 0 ? (<p style={{ color: "#888", fontSize: 14 }}>Aun no tienes horas registradas.</p>) : myWorkHours.map(wh => (
+          <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Historial de Horas</h3>
+          {myWorkHours.length === 0 ? (<p style={{ color: "#888", fontSize: 14 }}>Sin horas registradas.</p>) : myWorkHours.map(wh => (
             <div key={wh.id} style={{ background: "#fff", borderRadius: 10, padding: "12px 16px", marginBottom: 6, border: "1px solid #eee", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div><div style={{ fontSize: 14, fontWeight: 600 }}>{wh.description}</div><div style={{ fontSize: 12, color: "#888" }}>{wh.work_date} | {fmtH(parseFloat(wh.hours))}</div></div>
               <span style={{ fontSize: 12, fontWeight: 600, color: whStatusColors[wh.status] || "#888" }}>{wh.status === "aprobado" ? "Aprobado" : wh.status === "pendiente" ? "Pendiente" : "Rechazado"}</span>
@@ -240,7 +232,7 @@ export default function CatalogoPage() {
         <div style={{ maxWidth: 700, margin: "0 auto" }}>
           <button onClick={() => setShowHistory(false)} style={pillBtn}>Volver al catalogo</button>
           <h2 style={{ fontSize: 20, fontWeight: 700, margin: "16px 0" }}>Historial de Pedidos</h2>
-          {orders.length === 0 ? (<p style={{ color: "#888" }}>No tienes pedidos anteriores.</p>) : orders.map(o => {
+          {orders.length === 0 ? (<p style={{ color: "#888" }}>Sin pedidos.</p>) : orders.map(o => {
             const st = statusLabels[o.status] || statusLabels.pendiente_pago;
             return (
               <div key={o.id} style={{ background: "#fff", borderRadius: 12, padding: 16, marginBottom: 12, border: "1px solid #eee" }}>
@@ -248,9 +240,8 @@ export default function CatalogoPage() {
                   <span style={{ fontSize: 12, background: st.bg, color: st.color, padding: "2px 8px", borderRadius: 20 }}>{st.text}</span>
                   <span style={{ fontSize: 12, color: "#888" }}>{new Date(o.created_at).toLocaleDateString("es-CL")}</span>
                 </div>
-                {o.order_items?.map((it, i) => (<div key={i} style={{ fontSize: 13, color: "#555", display: "flex", justifyContent: "space-between", padding: "2px 0" }}><span>{it.product_name} x {it.quantity}</span><span>{fmt(it.subtotal)} {parseFloat(it.hours_subtotal) > 0 ? "+ " + fmtH(parseFloat(it.hours_subtotal)) : ""}</span></div>))}
-                <div style={{ borderTop: "1px solid #eee", marginTop: 8, paddingTop: 8, display: "flex", justifyContent: "space-between", fontWeight: 700 }}><span>Total</span><span style={{ color: "#2d6a4f" }}>{fmt(o.total)} {parseFloat(o.total_hours) > 0 ? "+ " + fmtH(parseFloat(o.total_hours)) : ""}</span></div>
-                {o.status === "pendiente_pago" && (<div style={{ marginTop: 8, padding: 10, background: "#fff3cd", borderRadius: 8, fontSize: 12, color: "#856404" }}>Paga por transferencia o en caja de Mercado Origen.</div>)}
+                {o.order_items?.map((it, i) => (<div key={i} style={{ fontSize: 13, color: "#555", display: "flex", justifyContent: "space-between", padding: "2px 0" }}><span>{it.product_name} x {it.quantity}</span><span>{fmt(it.subtotal)}</span></div>))}
+                <div style={{ borderTop: "1px solid #eee", marginTop: 8, paddingTop: 8, display: "flex", justifyContent: "space-between", fontWeight: 700 }}><span>Total</span><span style={{ color: "#2d6a4f" }}>{fmt(o.total)}</span></div>
               </div>
             );
           })}
@@ -261,7 +252,7 @@ export default function CatalogoPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
-      {toast && (<div className="toast" style={{ position: "fixed", top: 16, right: 16, zIndex: 999, background: "#2d6a4f", color: "#fff", padding: "12px 20px", borderRadius: 10, fontSize: 14, fontWeight: 600, boxShadow: "0 4px 16px rgba(0,0,0,0.2)" }}>{toast}</div>)}
+      {toast && (<div style={{ position: "fixed", top: 16, right: 16, zIndex: 999, background: "#2d6a4f", color: "#fff", padding: "12px 20px", borderRadius: 10, fontSize: 14, fontWeight: 600, boxShadow: "0 4px 16px rgba(0,0,0,0.2)" }}>{toast}</div>)}
 
       <div style={{ background: "#fff", borderBottom: "1px solid #eee", padding: "12px 20px", position: "sticky", top: 0, zIndex: 100 }}>
         <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -287,7 +278,7 @@ export default function CatalogoPage() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
             <div>
               <div style={{ fontSize: 11, opacity: 0.8, letterSpacing: 1 }}>{cycle ? "CICLO ABIERTO" : "SIN CICLO ACTIVO"}</div>
-              <div style={{ fontSize: 15, fontWeight: 600, marginTop: 2 }}>{cycle?.name || "No hay ciclo de pedidos abierto"}</div>
+              <div style={{ fontSize: 15, fontWeight: 600, marginTop: 2 }}>{cycle?.name || "No hay ciclo abierto"}</div>
             </div>
             {cycle && <div style={{ fontSize: 12, opacity: 0.9 }}>{cycle.start_date} - {cycle.end_date}</div>}
           </div>
@@ -302,8 +293,8 @@ export default function CatalogoPage() {
         </div>
         <div style={{ display: "flex", gap: 6, paddingBottom: 8, marginTop: 6 }}>
           <button onClick={() => setActiveFilter("all")} style={{ ...sealBtn, background: activeFilter === "all" ? "#555" : "transparent", color: activeFilter === "all" ? "#fff" : "#888", border: "1px solid #ddd" }}>Sin filtro</button>
-          <button onClick={() => setActiveFilter("origen")} style={{ ...sealBtn, background: activeFilter === "origen" ? "#2d6a4f" : "transparent", color: activeFilter === "origen" ? "#fff" : "#2d6a4f", border: "1px solid #2d6a4f" }}>🌱 Producto Origen</button>
-          <button onClick={() => setActiveFilter("regenerativo")} style={{ ...sealBtn, background: activeFilter === "regenerativo" ? "#6b4226" : "transparent", color: activeFilter === "regenerativo" ? "#fff" : "#6b4226", border: "1px solid #6b4226" }}>🌿 Regenerativo L2M</button>
+          <button onClick={() => setActiveFilter("origen")} style={{ ...sealBtn, background: activeFilter === "origen" ? "#2d6a4f" : "transparent", color: activeFilter === "origen" ? "#fff" : "#2d6a4f", border: "1px solid #2d6a4f" }}>Producto Origen</button>
+          <button onClick={() => setActiveFilter("regenerativo")} style={{ ...sealBtn, background: activeFilter === "regenerativo" ? "#6b4226" : "transparent", color: activeFilter === "regenerativo" ? "#fff" : "#6b4226", border: "1px solid #6b4226" }}>Regenerativo L2M</button>
         </div>
       </div>
 
@@ -317,15 +308,17 @@ export default function CatalogoPage() {
           const borderColor = p.is_origen ? "#2d6a4f" : p.is_regenerativo ? "#6b4226" : "#eee";
           const bgColor = p.is_origen ? "#f0faf4" : p.is_regenerativo ? "#faf5f0" : "#fff";
           return (
-            <div key={p.id} style={{ background: bgColor, borderRadius: 12, padding: 16, border: hasSeals ? "2px solid " + borderColor : "1px solid #eee", display: "flex", flexDirection: "column", opacity: outOfStock ? 0.5 : 1, position: "relative" }}>
-              <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                {p.is_origen && (<span style={{ background: "#2d6a4f", color: "#fff", fontSize: 8, fontWeight: 700, padding: "3px 7px", borderRadius: 20, letterSpacing: 0.5 }}>PRODUCTO ORIGEN</span>)}
-                {p.is_regenerativo && (<span style={{ background: "#6b4226", color: "#fff", fontSize: 8, fontWeight: 700, padding: "3px 7px", borderRadius: 20, letterSpacing: 0.5 }}>REGENERATIVO L2M</span>)}
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+            <div key={p.id} style={{ background: bgColor, borderRadius: 12, padding: 16, border: hasSeals ? "2px solid " + borderColor : "1px solid #eee", display: "flex", flexDirection: "column", opacity: outOfStock ? 0.5 : 1 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
                 <div style={{ fontSize: 11, background: (cat?.color || "#333") + "18", color: cat?.color || "#333", padding: "2px 8px", borderRadius: 20, fontWeight: 600 }}>{cat?.icon} {cat?.name}</div>
-                <div style={{ fontSize: 10, color: outOfStock ? "#e63946" : "#888", marginRight: hasSeals ? 80 : 0 }}>{outOfStock ? "Agotado" : "Stock: " + p.stock}</div>
+                <div style={{ fontSize: 10, color: outOfStock ? "#e63946" : "#888" }}>{outOfStock ? "Agotado" : "Stock: " + p.stock}</div>
               </div>
+              {hasSeals && (
+                <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 6 }}>
+                  {p.is_origen && (<span style={{ background: "#2d6a4f", color: "#fff", fontSize: 8, fontWeight: 700, padding: "3px 7px", borderRadius: 20, letterSpacing: 0.5 }}>PRODUCTO ORIGEN</span>)}
+                  {p.is_regenerativo && (<span style={{ background: "#6b4226", color: "#fff", fontSize: 8, fontWeight: 700, padding: "3px 7px", borderRadius: 20, letterSpacing: 0.5 }}>REGENERATIVO L2M</span>)}
+                </div>
+              )}
               <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>{p.name}</div>
               <div style={{ fontSize: 12, color: "#888", marginBottom: 8 }}>por {p.unit}</div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "auto" }}>
@@ -348,8 +341,8 @@ export default function CatalogoPage() {
 
       {cartCount > 0 && !showCart && (
         <div style={{ position: "fixed", bottom: 20, left: "50%", transform: "translateX(-50%)", zIndex: 200 }}>
-          <button onClick={() => setShowCart(true)} style={{ background: "#2d6a4f", color: "#fff", border: "none", borderRadius: 50, padding: "14px 28px", fontSize: 15, fontWeight: 600, cursor: "pointer", boxShadow: "0 6px 24px rgba(45,106,79,0.4)", display: "flex", alignItems: "center", gap: 8 }}>
-            Carrito ({cartCount}) - {fmt(cartTotal)} {cartTotalHours > 0 ? "+ " + fmtH(cartTotalHours) : ""}
+          <button onClick={() => setShowCart(true)} style={{ background: "#2d6a4f", color: "#fff", border: "none", borderRadius: 50, padding: "14px 28px", fontSize: 15, fontWeight: 600, cursor: "pointer", boxShadow: "0 6px 24px rgba(45,106,79,0.4)" }}>
+            Carrito ({cartCount}) - {fmt(cartTotal)}
           </button>
         </div>
       )}
@@ -366,16 +359,16 @@ export default function CatalogoPage() {
               <div>
                 <h3 style={{ fontSize: 16, marginBottom: 16 }}>Resumen de Pago</h3>
                 <div style={{ background: "#f8f8f8", borderRadius: 10, padding: 16, marginBottom: 16 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14 }}><span>Productos (pesos)</span><span style={{ fontWeight: 700 }}>{fmt(cartTotal)}</span></div>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14 }}><span>Componente horas</span><span style={{ fontWeight: 700, color: "#b5651d" }}>{fmtH(cartTotalHours)}</span></div>
-                  {hoursBalance > 0 && (<div style={{ borderTop: "1px solid #ddd", paddingTop: 8, marginTop: 8 }}><label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}><input type="checkbox" checked={payWithHours} onChange={e => setPayWithHours(e.target.checked)} />Usar mi saldo ({fmtH(hoursBalance)})</label>{payWithHours && hoursToUse > 0 && (<div style={{ fontSize: 12, color: "#2d6a4f", marginTop: 4 }}>Se descontaran {fmtH(hoursToUse)}</div>)}</div>)}
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14 }}><span>Productos</span><span style={{ fontWeight: 700 }}>{fmt(cartTotal)}</span></div>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 14 }}><span>Horas</span><span style={{ fontWeight: 700, color: "#b5651d" }}>{fmtH(cartTotalHours)}</span></div>
+                  {hoursBalance > 0 && (<div style={{ borderTop: "1px solid #ddd", paddingTop: 8, marginTop: 8 }}><label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}><input type="checkbox" checked={payWithHours} onChange={e => setPayWithHours(e.target.checked)} />Usar saldo ({fmtH(hoursBalance)})</label>{payWithHours && hoursToUse > 0 && (<div style={{ fontSize: 12, color: "#2d6a4f", marginTop: 4 }}>Descuento: {fmtH(hoursToUse)}</div>)}</div>)}
                 </div>
                 {hoursToPayInMoney > 0 && (<div style={{ background: "#fff3cd", borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 13, color: "#856404" }}>{fmtH(hoursToPayInMoney)} = {fmt(hoursMoneyEquivalent)} (a {fmt(hourValue)}/hr)</div>)}
                 <div style={{ background: "#2d6a4f", borderRadius: 10, padding: 16, marginBottom: 16, color: "#fff" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 18, fontWeight: 700 }}><span>Total a pagar</span><span>{fmt(grandTotal)}</span></div>
-                  {hoursToUse > 0 && (<div style={{ fontSize: 12, opacity: 0.8, marginTop: 4 }}>+ {fmtH(hoursToUse)} de tu saldo</div>)}
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 18, fontWeight: 700 }}><span>Total</span><span>{fmt(grandTotal)}</span></div>
+                  {hoursToUse > 0 && (<div style={{ fontSize: 12, opacity: 0.8, marginTop: 4 }}>+ {fmtH(hoursToUse)} de saldo</div>)}
                 </div>
-                <div style={{ background: "#f0f4f8", borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 13, color: "#555" }}><strong>Formas de pago:</strong><div style={{ marginTop: 4 }}>Transferencia bancaria</div><div>Pago en caja Mercado Origen</div><div style={{ marginTop: 8, fontSize: 12, color: "#888" }}>Pedido queda pendiente hasta confirmacion.</div></div>
+                <div style={{ background: "#f0f4f8", borderRadius: 10, padding: 12, marginBottom: 16, fontSize: 13, color: "#555" }}><strong>Formas de pago:</strong><div style={{ marginTop: 4 }}>Transferencia bancaria o caja Mercado Origen</div></div>
                 <div style={{ display: "flex", gap: 8 }}>
                   <button onClick={() => setShowPayment(false)} style={{ flex: 1, background: "#f0f0f0", border: "none", borderRadius: 10, padding: "14px", fontSize: 14, cursor: "pointer" }}>Volver</button>
                   <button onClick={submitOrder} style={{ flex: 2, background: "#2d6a4f", color: "#fff", border: "none", borderRadius: 10, padding: "14px", fontSize: 16, fontWeight: 600, cursor: "pointer" }}>Confirmar Pedido</button>
@@ -385,7 +378,7 @@ export default function CatalogoPage() {
               <div>
                 {cartItems.map(([pid, qty]) => { const prod = products.find(p => p.id === pid); if (!prod) return null; const hc = parseFloat(prod.hours_component) || 0; return (
                   <div key={pid} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "1px solid #f0f0f0" }}>
-                    <div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 600 }}>{prod.name}</div><div style={{ fontSize: 12, color: "#888" }}>{fmt(prod.price)} x {qty} = {fmt(prod.price * qty)}</div>{hc > 0 && <div style={{ fontSize: 11, color: "#b5651d" }}>+ {fmtH(hc)} x {qty} = {fmtH(hc * qty)}</div>}</div>
+                    <div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 600 }}>{prod.name}</div><div style={{ fontSize: 12, color: "#888" }}>{fmt(prod.price)} x {qty} = {fmt(prod.price * qty)}</div>{hc > 0 && <div style={{ fontSize: 11, color: "#b5651d" }}>+ {fmtH(hc * qty)}</div>}</div>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}><button onClick={() => updateCart(pid, -1)} style={qtyBtn}>-</button><span style={{ fontWeight: 700, minWidth: 20, textAlign: "center" }}>{qty}</span><button onClick={() => updateCart(pid, 1)} style={{ ...qtyBtn, background: "#2d6a4f", color: "#fff", border: "none" }}>+</button></div>
                   </div>); })}
                 <div style={{ marginTop: 20, padding: "16px 0", borderTop: "2px solid #1a1a1a" }}>
@@ -405,6 +398,6 @@ export default function CatalogoPage() {
 const labelStyle = { display: "block", fontSize: 12, fontWeight: 600, color: "#555", marginBottom: 4 };
 const inputStyle = { width: "100%", padding: "10px 12px", border: "1px solid #ddd", borderRadius: 8, fontSize: 14, boxSizing: "border-box" };
 const pillBtn = { background: "#f0f0f0", border: "none", borderRadius: 20, padding: "8px 14px", fontSize: 13, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap" };
-const catBtn = { border: "none", borderRadius: 20, padding: "8px 14px", fontSize: 12, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.2s" };
-const sealBtn = { borderRadius: 20, padding: "6px 12px", fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.2s", background: "transparent" };
+const catBtn = { border: "none", borderRadius: 20, padding: "8px 14px", fontSize: 12, fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap" };
+const sealBtn = { borderRadius: 20, padding: "6px 12px", fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" };
 const qtyBtn = { width: 32, height: 32, borderRadius: "50%", border: "1px solid #ddd", background: "#f8f8f8", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, lineHeight: 1 };
