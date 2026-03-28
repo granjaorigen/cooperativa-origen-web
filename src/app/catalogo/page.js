@@ -336,7 +336,7 @@ export default function CatalogoPage() {
                   </div>
                   <div style={{ textAlign: "right" }}>
                     {cycle?.close_date && (
-                      <div style={{ fontSize: 12, opacity: 0.9 }}>Cierra: {new Date(cycle.close_date).toLocaleDateString("es-CL", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>
+                      <div style={{ fontSize: 12, opacity: 0.9 }}>Cierra: {new Date(cycle.close_date).toLocaleString("es-CL", { timeZone: "America/Santiago", weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>
                     )}
                     {!cycle?.close_date && cycle && <div style={{ fontSize: 12, opacity: 0.9 }}>{cycle.start_date} - {cycle.end_date}</div>}
                   </div>
