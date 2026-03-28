@@ -18,6 +18,7 @@ export default function CatalogoPage() {
   const [loginSent, setLoginSent] = useState(false);
   const [member, setMember] = useState(null);
   const [hourValue, setHourValue] = useState(3750);
+  const [cycleMode, setCycleMode] = useState("cycles");
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
   const [cycle, setCycle] = useState(null);
@@ -50,14 +51,17 @@ export default function CatalogoPage() {
       const email = session.user.email;
       const { data: existingMember } = await supabase.from("members").select("*").eq("email", email).single();
       if (existingMember) { setMember(existingMember); } else {
-        const { data: newMember } = await supabase.from("members").insert({ email, full_name: session.user.user_metadata?.full_name || email }).select().single();
+        const { data: newMember } = await supabase.from("members").insert({ email, full_name: session.user.user_metadata?.full_name || email, approval_status: "pendiente" }).select().single();
         setMember(newMember);
       }
+      const { data: cmSetting } = await supabase.from("settings").select("value").eq("key", "cycle_mode").single();
+      if (cmSetting) setCycleMode(cmSetting.value);
+      const { data: settingHour } = await supabase.from("settings").select("value").eq("key", "hour_value_clp").single();
+      if (settingHour) setHourValue(parseInt(settingHour.value));
       const { data: cats } = await supabase.from("categories").select("*").order("sort_order"); setCategories(cats || []);
       const { data: prods } = await supabase.from("products").select("*").eq("is_active", true).order("name"); setProducts(prods || []);
       const { data: activeCycle } = await supabase.from("cycles").select("*").eq("status", "open").order("created_at", { ascending: false }).limit(1).single(); setCycle(activeCycle);
-      const { data: settingHour } = await supabase.from("settings").select("value").eq("key", "hour_value_clp").single(); if (settingHour) setHourValue(parseInt(settingHour.value));
-      if (existingMember) {
+      if (existingMember && existingMember.approval_status === "aprobado") {
         const { data: myOrders } = await supabase.from("orders").select("*, order_items(*)").eq("member_id", existingMember.id).order("created_at", { ascending: false }); setOrders(myOrders || []);
         const { data: wh } = await supabase.from("work_hours").select("*").eq("member_id", existingMember.id).order("created_at", { ascending: false }); setMyWorkHours(wh || []);
         const { data: shifts } = await supabase.from("work_shifts").select("*").eq("status", "open").order("shift_date", { ascending: true }); setAvailableShifts(shifts || []);
@@ -94,6 +98,8 @@ export default function CatalogoPage() {
   const hoursMoneyEquivalent = Math.round(hoursToPayInMoney * hourValue);
   const grandTotal = cartTotal + hoursMoneyEquivalent;
 
+  const canOrder = cycleMode === "always_open" || (cycle && cycle.status === "open");
+
   const signUpForShift = async (shiftId) => {
     if (!member) return;
     const shift = availableShifts.find(s => s.id === shiftId);
@@ -116,15 +122,17 @@ export default function CatalogoPage() {
   };
 
   const submitOrder = async () => {
-    if (!member || !cycle || cartItems.length === 0) return;
-    const { data: order, error: orderError } = await supabase.from("orders").insert({ member_id: member.id, cycle_id: cycle.id, total: grandTotal, total_hours: cartTotalHours, hours_paid_with_balance: hoursToUse, hours_paid_with_money: hoursToPayInMoney, payment_method: "pending", status: "pendiente_pago" }).select().single();
+    if (!member || cartItems.length === 0) return;
+    if (cycleMode === "cycles" && (!cycle || cycle.status !== "open")) { showToast("No hay ciclo abierto"); return; }
+    const cycleId = cycleMode === "cycles" ? cycle.id : null;
+    const { data: order, error: orderError } = await supabase.from("orders").insert({ member_id: member.id, cycle_id: cycleId, total: grandTotal, total_hours: cartTotalHours, hours_paid_with_balance: hoursToUse, hours_paid_with_money: hoursToPayInMoney, payment_method: "pending", status: "pendiente_pago" }).select().single();
     if (orderError) { showToast("Error al enviar pedido"); return; }
     const items = cartItems.map(([pid, qty]) => { const prod = products.find(p => p.id === pid); const hc = parseFloat(prod.hours_component) || 0; return { order_id: order.id, product_id: pid, product_name: prod.name, product_unit: prod.unit, price: prod.price, quantity: qty, subtotal: prod.price * qty, hours_component: hc, hours_subtotal: hc * qty }; });
     await supabase.from("order_items").insert(items);
     for (const [pid, qty] of cartItems) { const prod = products.find(p => p.id === pid); if (prod) await supabase.from("products").update({ stock: Math.max(0, prod.stock - qty) }).eq("id", pid); }
     if (hoursToUse > 0) { await supabase.from("members").update({ hours_balance: hoursBalance - hoursToUse }).eq("id", member.id); setMember({ ...member, hours_balance: hoursBalance - hoursToUse }); }
     setCart({}); setShowCart(false); setShowPayment(false);
-    try { await fetch("/api/send-order", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: session.user.email, name: member?.full_name || "Cooperado", items, total: grandTotal, totalHours: cartTotalHours, hoursUsed: hoursToUse, hoursInMoney: hoursMoneyEquivalent, cycleName: cycle.name, orderId: order.id.slice(0, 8).toUpperCase(), date: new Date().toLocaleDateString("es-CL"), hourValue }) }); } catch (e) { console.log("Email error:", e); }
+    try { await fetch("/api/send-order", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: session.user.email, name: member?.full_name || "Cooperado", items, total: grandTotal, totalHours: cartTotalHours, hoursUsed: hoursToUse, hoursInMoney: hoursMoneyEquivalent, cycleName: cycle?.name || "Pedido directo", orderId: order.id.slice(0, 8).toUpperCase(), date: new Date().toLocaleDateString("es-CL"), hourValue }) }); } catch (e) { console.log("Email error:", e); }
     showToast("Pedido enviado!");
     const { data: prods } = await supabase.from("products").select("*").eq("is_active", true).order("name"); setProducts(prods || []);
     const { data: myOrders } = await supabase.from("orders").select("*, order_items(*)").eq("member_id", member.id).order("created_at", { ascending: false }); setOrders(myOrders || []);
@@ -174,6 +182,42 @@ export default function CatalogoPage() {
             </div>
           )}
           <div style={{ textAlign: "center", marginTop: 20 }}><Link href="/" style={{ color: "#999", fontSize: 12, textDecoration: "underline" }}>Volver al inicio</Link></div>
+        </div>
+      </div>
+    );
+  }
+
+  // PENDING APPROVAL
+  if (member && member.approval_status === "pendiente") {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg, #faf9f6 0%, #e8e4dd 100%)", padding: 20 }}>
+        <div style={{ width: "100%", maxWidth: 420, background: "#fff", borderRadius: 16, padding: "40px 32px", boxShadow: "0 8px 32px rgba(0,0,0,0.08)", textAlign: "center" }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>⏳</div>
+          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Solicitud en revision</h2>
+          <p style={{ color: "#666", fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>
+            Tu solicitud de ingreso a la Cooperativa Origen esta siendo revisada por la administracion. Te avisaremos cuando sea aprobada.
+          </p>
+          <div style={{ background: "#f8f8f8", borderRadius: 10, padding: 16, marginBottom: 20, fontSize: 13, color: "#555" }}>
+            <div style={{ marginBottom: 4 }}><strong>Nombre:</strong> {member.full_name}</div>
+            <div><strong>Email:</strong> {member.email}</div>
+          </div>
+          <button onClick={handleLogout} style={{ background: "#f0f0f0", border: "none", borderRadius: 10, padding: "10px 24px", fontSize: 13, cursor: "pointer" }}>Cerrar sesion</button>
+        </div>
+      </div>
+    );
+  }
+
+  // REJECTED
+  if (member && member.approval_status === "rechazado") {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg, #faf9f6 0%, #e8e4dd 100%)", padding: 20 }}>
+        <div style={{ width: "100%", maxWidth: 420, background: "#fff", borderRadius: 16, padding: "40px 32px", boxShadow: "0 8px 32px rgba(0,0,0,0.08)", textAlign: "center" }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>Acceso denegado</div>
+          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Solicitud no aprobada</h2>
+          <p style={{ color: "#666", fontSize: 14, lineHeight: 1.6, marginBottom: 24 }}>
+            Tu solicitud de ingreso no fue aprobada. Si crees que es un error, contacta al administrador de la cooperativa.
+          </p>
+          <button onClick={handleLogout} style={{ background: "#f0f0f0", border: "none", borderRadius: 10, padding: "10px 24px", fontSize: 13, cursor: "pointer" }}>Cerrar sesion</button>
         </div>
       </div>
     );
@@ -274,15 +318,22 @@ export default function CatalogoPage() {
       </div>
 
       <div style={{ maxWidth: 900, margin: "16px auto", padding: "0 20px" }}>
-        <div style={{ background: cycle ? "linear-gradient(135deg, #2d6a4f, #40916c)" : "#6c757d", borderRadius: 12, padding: "14px 20px", color: "#fff" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-            <div>
-              <div style={{ fontSize: 11, opacity: 0.8, letterSpacing: 1 }}>{cycle ? "CICLO ABIERTO" : "SIN CICLO ACTIVO"}</div>
-              <div style={{ fontSize: 15, fontWeight: 600, marginTop: 2 }}>{cycle?.name || "No hay ciclo abierto"}</div>
+        {cycleMode === "cycles" ? (
+          <div style={{ background: cycle ? "linear-gradient(135deg, #2d6a4f, #40916c)" : "#6c757d", borderRadius: 12, padding: "14px 20px", color: "#fff" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+              <div>
+                <div style={{ fontSize: 11, opacity: 0.8, letterSpacing: 1 }}>{cycle ? "CICLO ABIERTO" : "SIN CICLO ACTIVO"}</div>
+                <div style={{ fontSize: 15, fontWeight: 600, marginTop: 2 }}>{cycle?.name || "No hay ciclo abierto. Vuelve pronto."}</div>
+              </div>
+              {cycle && <div style={{ fontSize: 12, opacity: 0.9 }}>{cycle.start_date} - {cycle.end_date}</div>}
             </div>
-            {cycle && <div style={{ fontSize: 12, opacity: 0.9 }}>{cycle.start_date} - {cycle.end_date}</div>}
           </div>
-        </div>
+        ) : (
+          <div style={{ background: "linear-gradient(135deg, #2d6a4f, #40916c)", borderRadius: 12, padding: "14px 20px", color: "#fff" }}>
+            <div style={{ fontSize: 11, opacity: 0.8, letterSpacing: 1 }}>TIENDA ABIERTA</div>
+            <div style={{ fontSize: 15, fontWeight: 600, marginTop: 2 }}>Pedidos disponibles en todo momento</div>
+          </div>
+        )}
       </div>
 
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 20px" }}>
@@ -326,13 +377,13 @@ export default function CatalogoPage() {
                   <div style={{ fontSize: 20, fontWeight: 700, color: "#2d6a4f" }}>{fmt(p.price)}</div>
                   {hc > 0 && <div style={{ fontSize: 11, color: "#b5651d", fontWeight: 600 }}>+ {fmtH(hc)}</div>}
                 </div>
-                {cycle && !outOfStock ? (
+                {canOrder && !outOfStock ? (
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     {qty > 0 && <button onClick={() => updateCart(p.id, -1)} style={qtyBtn}>-</button>}
                     {qty > 0 && <span style={{ fontSize: 16, fontWeight: 700, minWidth: 24, textAlign: "center" }}>{qty}</span>}
                     <button onClick={() => updateCart(p.id, 1)} style={{ ...qtyBtn, background: "#2d6a4f", color: "#fff", border: "none" }}>+</button>
                   </div>
-                ) : !cycle ? (<span style={{ fontSize: 11, color: "#999" }}>Sin ciclo activo</span>) : (<span style={{ fontSize: 11, color: "#e63946" }}>Agotado</span>)}
+                ) : !canOrder ? (<span style={{ fontSize: 11, color: "#999" }}>No disponible</span>) : (<span style={{ fontSize: 11, color: "#e63946" }}>Agotado</span>)}
               </div>
             </div>
           );
