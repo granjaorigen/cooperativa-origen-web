@@ -279,7 +279,7 @@ function NewCycleForm({ onSave, onCancel, sending }) {
   const handleSave = async () => {
     if (!name.trim()) return;
     setSaving(true);
-    const cd = closeDate ? closeDate + "T" + closeTime + ":00" : null;
+    const cd = closeDate ? closeDate + "T" + closeTime + ":00-03:00" : null;
     await onSave(name.trim(), cd, notify);
     setSaving(false);
   };
